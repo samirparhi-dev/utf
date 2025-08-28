@@ -1,0 +1,46 @@
+{
+  "name": "csharp",
+  "extensions": ["cs"],
+  "framework": "xunit",
+  "patterns": [
+    {
+      "name": "method",
+      "pattern_type": "function",
+      "regex": "(?:public|private|protected|internal)?\\s*(?:static\\s+)?(?:virtual\\s+)?(?:override\\s+)?(\\w+)\\s+(\\w+)\\s*\\(([^)]*)\\)",
+      "capture_groups": {
+        "name": 2,
+        "parameters": 3,
+        "return_type": 1,
+        "parameter_separator": ",",
+        "parameter_format": "type_name"
+      },
+      "confidence": 0.9
+    },
+    {
+      "name": "class",
+      "pattern_type": "function",
+      "regex": "(?:public\\s+)?class\\s+(\\w+)",
+      "capture_groups": {
+        "name": 1,
+        "parameters": null,
+        "return_type": null,
+        "parameter_separator": ",",
+        "parameter_format": "name_only"
+      },
+      "confidence": 0.8
+    }
+  ],
+  "test_template": {
+    "setup": "using Xunit;\n\nnamespace {{NAMESPACE}}.Tests\n{\n    public class {{CLASS_NAME}}Tests\n    {",
+    "test_function": "        [Fact]\n        public void {{TEST_NAME}}()\n        {\n            // {{TEST_DESCRIPTION}}\n            // TODO: Implement test logic\n        }",
+    "teardown": "    }\n}",
+    "file_extension": "Tests.cs",
+    "placeholders": {
+      "CLASS_NAME": "TestClass",
+      "NAMESPACE": "YourProject"
+    }
+  },
+  "imports": [
+    "Xunit"
+  ]
+}

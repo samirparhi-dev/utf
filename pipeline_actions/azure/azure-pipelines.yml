@@ -1,0 +1,380 @@
+# Azure DevOps pipeline for Unified Testing Framework
+# Copy this file to the root of your repository as azure-pipelines.yml
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    include:
+      - '**/*.js'
+      - '**/*.jsx'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.py'
+      - '**/*.rs'
+
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - '**/*.js'
+      - '**/*.jsx'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.py'
+      - '**/*.rs'
+
+parameters:
+  - name: generateTests
+    displayName: 'Generate tests for detected files'
+    type: boolean
+    default: true
+  - name: buildPlugins
+    displayName: 'Build IDE plugins'
+    type: boolean
+    default: false
+  - name: customFiles
+    displayName: 'Specific files to analyze (space-separated)'
+    type: string
+    default: ''
+
+variables:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+  unifiedTestingVersion: 'latest'
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+  - stage: Setup
+    displayName: 'Setup and Build'
+    jobs:
+      - job: BuildUnifiedTesting
+        displayName: 'Build Unified Testing Framework'
+        steps:
+          - task: Cache@2
+            displayName: 'Cache Cargo registry'
+            inputs:
+              key: 'cargo | "$(Agent.OS)" | **/Cargo.lock'
+              restoreKeys: |
+                cargo | "$(Agent.OS)"
+                cargo
+              path: |
+                ~/.cargo/registry
+                ~/.cargo/git
+                target
+
+          - script: |
+              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+              source ~/.cargo/env
+              rustup update stable
+              rustup default stable
+            displayName: 'Install Rust'
+
+          - script: |
+              git clone https://github.com/unified-testing/unified-test-framework.git
+              cd unified-test-framework
+              source ~/.cargo/env
+              cargo build --release --bin uft
+              cp target/release/uft $(Build.ArtifactStagingDirectory)/uft
+            displayName: 'Build uft binary'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish uft binary'
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)/uft'
+              artifact: 'uft'
+              publishLocation: 'pipeline'
+
+      - job: DetectFiles
+        displayName: 'Detect File Types'
+        dependsOn: []
+        steps:
+          - script: |
+              echo "##vso[task.setvariable variable=hasJavaScript;isOutput=true]$(find . -name '*.js' -o -name '*.jsx' -o -name '*.ts' -o -name '*.tsx' | head -1 | wc -l)"
+              echo "##vso[task.setvariable variable=hasPython;isOutput=true]$(find . -name '*.py' | head -1 | wc -l)"
+              echo "##vso[task.setvariable variable=hasRust;isOutput=true]$(find . -name '*.rs' | head -1 | wc -l)"
+            name: 'detectFiles'
+            displayName: 'Detect file types'
+
+  - stage: Analyze
+    displayName: 'Code Analysis'
+    dependsOn: Setup
+    variables:
+      hasJavaScript: $[ stageDependencies.Setup.DetectFiles.outputs['detectFiles.hasJavaScript'] ]
+      hasPython: $[ stageDependencies.Setup.DetectFiles.outputs['detectFiles.hasPython'] ]
+      hasRust: $[ stageDependencies.Setup.DetectFiles.outputs['detectFiles.hasRust'] ]
+    jobs:
+      - job: AnalyzeJavaScript
+        displayName: 'Analyze JavaScript/TypeScript'
+        condition: eq(variables.hasJavaScript, '1')
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download uft binary'
+            inputs:
+              artifact: 'uft'
+              path: '$(System.DefaultWorkingDirectory)'
+
+          - script: |
+              chmod +x uft
+              mkdir -p analysis-results
+              echo "Analyzing JavaScript/TypeScript files..."
+              find . -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" | while read file; do
+                echo "##[group]Analyzing $file"
+                ./uft analyze "$file" | tee "analysis-results/$(basename "$file").analysis" || echo "##vso[task.logissue type=warning]Analysis failed for $file"
+                echo "##[endgroup]"
+              done
+            displayName: 'Analyze JavaScript/TypeScript files'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish analysis results'
+            inputs:
+              targetPath: 'analysis-results'
+              artifact: 'analysis-results-javascript'
+              publishLocation: 'pipeline'
+
+      - job: AnalyzePython
+        displayName: 'Analyze Python'
+        condition: eq(variables.hasPython, '1')
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download uft binary'
+            inputs:
+              artifact: 'uft'
+              path: '$(System.DefaultWorkingDirectory)'
+
+          - script: |
+              chmod +x uft
+              mkdir -p analysis-results
+              echo "Analyzing Python files..."
+              find . -name "*.py" | while read file; do
+                echo "##[group]Analyzing $file"
+                ./uft analyze "$file" | tee "analysis-results/$(basename "$file").analysis" || echo "##vso[task.logissue type=warning]Analysis failed for $file"
+                echo "##[endgroup]"
+              done
+            displayName: 'Analyze Python files'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish analysis results'
+            inputs:
+              targetPath: 'analysis-results'
+              artifact: 'analysis-results-python'
+              publishLocation: 'pipeline'
+
+      - job: AnalyzeRust
+        displayName: 'Analyze Rust'
+        condition: eq(variables.hasRust, '1')
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download uft binary'
+            inputs:
+              artifact: 'uft'
+              path: '$(System.DefaultWorkingDirectory)'
+
+          - script: |
+              chmod +x uft
+              mkdir -p analysis-results
+              echo "Analyzing Rust files..."
+              find . -name "*.rs" | while read file; do
+                echo "##[group]Analyzing $file"
+                ./uft analyze "$file" | tee "analysis-results/$(basename "$file").analysis" || echo "##vso[task.logissue type=warning]Analysis failed for $file"
+                echo "##[endgroup]"
+              done
+            displayName: 'Analyze Rust files'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish analysis results'
+            inputs:
+              targetPath: 'analysis-results'
+              artifact: 'analysis-results-rust'
+              publishLocation: 'pipeline'
+
+      - job: AnalyzeCustom
+        displayName: 'Analyze Custom Files'
+        condition: ne('${{ parameters.customFiles }}', '')
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download uft binary'
+            inputs:
+              artifact: 'uft'
+              path: '$(System.DefaultWorkingDirectory)'
+
+          - script: |
+              chmod +x uft
+              echo "Analyzing custom files: ${{ parameters.customFiles }}"
+              for file in ${{ parameters.customFiles }}; do
+                if [ -f "$file" ]; then
+                  echo "##[group]Analyzing $file"
+                  ./uft analyze "$file" || echo "##vso[task.logissue type=warning]Analysis failed for $file"
+                  echo "##[endgroup]"
+                else
+                  echo "##vso[task.logissue type=warning]File not found: $file"
+                fi
+              done
+            displayName: 'Analyze custom files'
+
+  - stage: GenerateTests
+    displayName: 'Generate Tests'
+    dependsOn: 
+      - Setup
+      - Analyze
+    condition: eq('${{ parameters.generateTests }}', true)
+    variables:
+      hasJavaScript: $[ stageDependencies.Setup.DetectFiles.outputs['detectFiles.hasJavaScript'] ]
+      hasPython: $[ stageDependencies.Setup.DetectFiles.outputs['detectFiles.hasPython'] ]
+      hasRust: $[ stageDependencies.Setup.DetectFiles.outputs['detectFiles.hasRust'] ]
+    jobs:
+      - job: GenerateTestsJavaScript
+        displayName: 'Generate Tests - JavaScript/TypeScript'
+        condition: eq(variables.hasJavaScript, '1')
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download uft binary'
+            inputs:
+              artifact: 'uft'
+              path: '$(System.DefaultWorkingDirectory)'
+
+          - script: |
+              chmod +x uft
+              mkdir -p generated-tests/javascript
+              echo "Generating tests for JavaScript/TypeScript files..."
+              find . -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" | while read file; do
+                echo "##[group]Generating tests for $file"
+                ./uft generate "$file" --output generated-tests/javascript/ || echo "##vso[task.logissue type=warning]Test generation failed for $file"
+                echo "##[endgroup]"
+              done
+            displayName: 'Generate tests for JavaScript/TypeScript'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish generated tests'
+            inputs:
+              targetPath: 'generated-tests'
+              artifact: 'generated-tests-javascript'
+              publishLocation: 'pipeline'
+
+      - job: GenerateTestsPython
+        displayName: 'Generate Tests - Python'
+        condition: eq(variables.hasPython, '1')
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download uft binary'
+            inputs:
+              artifact: 'uft'
+              path: '$(System.DefaultWorkingDirectory)'
+
+          - script: |
+              chmod +x uft
+              mkdir -p generated-tests/python
+              echo "Generating tests for Python files..."
+              find . -name "*.py" | while read file; do
+                echo "##[group]Generating tests for $file"
+                ./uft generate "$file" --output generated-tests/python/ || echo "##vso[task.logissue type=warning]Test generation failed for $file"
+                echo "##[endgroup]"
+              done
+            displayName: 'Generate tests for Python'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish generated tests'
+            inputs:
+              targetPath: 'generated-tests'
+              artifact: 'generated-tests-python'
+              publishLocation: 'pipeline'
+
+      - job: GenerateTestsRust
+        displayName: 'Generate Tests - Rust'
+        condition: eq(variables.hasRust, '1')
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download uft binary'
+            inputs:
+              artifact: 'uft'
+              path: '$(System.DefaultWorkingDirectory)'
+
+          - script: |
+              chmod +x uft
+              mkdir -p generated-tests/rust
+              echo "Generating tests for Rust files..."
+              find . -name "*.rs" | while read file; do
+                echo "##[group]Generating tests for $file"
+                ./uft generate "$file" --output generated-tests/rust/ || echo "##vso[task.logissue type=warning]Test generation failed for $file"
+                echo "##[endgroup]"
+              done
+            displayName: 'Generate tests for Rust'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish generated tests'
+            inputs:
+              targetPath: 'generated-tests'
+              artifact: 'generated-tests-rust'
+              publishLocation: 'pipeline'
+
+  - stage: BuildPlugins
+    displayName: 'Build IDE Plugins'
+    dependsOn: Setup
+    condition: eq('${{ parameters.buildPlugins }}', true)
+    jobs:
+      - job: BuildIDEPlugins
+        displayName: 'Build IDE Plugins'
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download uft binary'
+            inputs:
+              artifact: 'uft'
+              path: '$(System.DefaultWorkingDirectory)'
+
+          - script: |
+              chmod +x uft
+              mkdir -p plugins-output
+              
+              echo "##[group]Building Zed plugin"
+              ./uft plugin zed --output plugins-output/ || echo "##vso[task.logissue type=warning]Zed plugin build failed"
+              echo "##[endgroup]"
+              
+              echo "##[group]Building VSCode plugin"
+              ./uft plugin vscode --output plugins-output/ || echo "##vso[task.logissue type=warning]VSCode plugin build failed"
+              echo "##[endgroup]"
+              
+              echo "##[group]Building Spring IDE plugin"
+              ./uft plugin spring --output plugins-output/ || echo "##vso[task.logissue type=warning]Spring IDE plugin build failed"
+              echo "##[endgroup]"
+            displayName: 'Build IDE plugins'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish IDE plugins'
+            inputs:
+              targetPath: 'plugins-output'
+              artifact: 'ide-plugins'
+              publishLocation: 'pipeline'
+
+  - stage: Summary
+    displayName: 'Pipeline Summary'
+    dependsOn: 
+      - Setup
+      - Analyze
+      - GenerateTests
+      - BuildPlugins
+    condition: always()
+    jobs:
+      - job: PublishResults
+        displayName: 'Publish Pipeline Results'
+        steps:
+          - script: |
+              echo "## Unified Testing Framework Pipeline Results"
+              echo ""
+              echo "### Pipeline Status"
+              echo "- Setup: $(stageDependencies.Setup.result)"
+              echo "- Analysis: $(stageDependencies.Analyze.result)"
+              echo "- Generate Tests: $(stageDependencies.GenerateTests.result)"
+              echo "- Build Plugins: $(stageDependencies.BuildPlugins.result)"
+              echo ""
+              echo "### Artifacts Generated"
+              echo "Check the pipeline artifacts for:"
+              echo "- Analysis results"
+              echo "- Generated tests"
+              echo "- IDE plugins (if requested)"
+            displayName: 'Generate summary'

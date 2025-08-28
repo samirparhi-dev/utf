@@ -1,0 +1,155 @@
+# GitLab CI Template for Unified Testing Framework
+# Include this template in your .gitlab-ci.yml with:
+# include:
+#   - remote: 'https://raw.githubusercontent.com/unified-testing/unified-test-framework/main/pipeline_actions/gitlab/unified-testing-template.yml'
+
+# Template for installing uft binary
+.install_uft:
+  image: rust:1.70
+  before_script:
+    - echo "Installing Unified Testing Framework..."
+    - git clone https://github.com/unified-testing/unified-test-framework.git /tmp/unified-test-framework
+    - cd /tmp/unified-test-framework
+    - cargo build --release --bin uft
+    - cp target/release/uft $CI_PROJECT_DIR/uft
+    - chmod +x $CI_PROJECT_DIR/uft
+    - cd $CI_PROJECT_DIR
+  cache:
+    key: uft-$CI_COMMIT_REF_SLUG
+    paths:
+      - uft
+    policy: pull-push
+
+# Template for analyzing files
+.analyze_template:
+  extends: .install_uft
+  stage: analyze
+  script:
+    - mkdir -p analysis-results
+    - |
+      if [ ! -z "$ANALYZE_FILES" ]; then
+        for file in $ANALYZE_FILES; do
+          echo "Analyzing: $file"
+          ./uft analyze "$file" | tee "analysis-results/$(basename "$file").analysis"
+        done
+      elif [ ! -z "$ANALYZE_PATTERN" ]; then
+        find . -name "$ANALYZE_PATTERN" | while read file; do
+          echo "Analyzing: $file"
+          ./uft analyze "$file" | tee "analysis-results/$(basename "$file").analysis"
+        done
+      fi
+  artifacts:
+    paths:
+      - analysis-results/
+    expire_in: 1 week
+
+# Template for generating tests
+.generate_tests_template:
+  extends: .install_uft
+  stage: generate-tests
+  script:
+    - mkdir -p generated-tests
+    - |
+      if [ ! -z "$GENERATE_FILES" ]; then
+        for file in $GENERATE_FILES; do
+          echo "Generating tests for: $file"
+          ./uft generate "$file" --output generated-tests/
+        done
+      elif [ ! -z "$GENERATE_PATTERN" ]; then
+        find . -name "$GENERATE_PATTERN" | while read file; do
+          echo "Generating tests for: $file"
+          ./uft generate "$file" --output generated-tests/
+        done
+      fi
+  artifacts:
+    paths:
+      - generated-tests/
+    expire_in: 1 week
+
+# Pre-configured jobs for common languages
+
+analyze:javascript:
+  extends: .analyze_template
+  variables:
+    ANALYZE_PATTERN: "*.js"
+  rules:
+    - exists:
+      - "**/*.js"
+
+analyze:typescript:
+  extends: .analyze_template
+  variables:
+    ANALYZE_PATTERN: "*.ts"
+  rules:
+    - exists:
+      - "**/*.ts"
+
+analyze:python:
+  extends: .analyze_template
+  variables:
+    ANALYZE_PATTERN: "*.py"
+  rules:
+    - exists:
+      - "**/*.py"
+
+analyze:rust:
+  extends: .analyze_template
+  variables:
+    ANALYZE_PATTERN: "*.rs"
+  rules:
+    - exists:
+      - "**/*.rs"
+
+generate_tests:javascript:
+  extends: .generate_tests_template
+  variables:
+    GENERATE_PATTERN: "*.js"
+  rules:
+    - exists:
+      - "**/*.js"
+    - if: $GENERATE_TESTS == "true"
+
+generate_tests:typescript:
+  extends: .generate_tests_template
+  variables:
+    GENERATE_PATTERN: "*.ts"
+  rules:
+    - exists:
+      - "**/*.ts"
+    - if: $GENERATE_TESTS == "true"
+
+generate_tests:python:
+  extends: .generate_tests_template
+  variables:
+    GENERATE_PATTERN: "*.py"
+  rules:
+    - exists:
+      - "**/*.py"
+    - if: $GENERATE_TESTS == "true"
+
+generate_tests:rust:
+  extends: .generate_tests_template
+  variables:
+    GENERATE_PATTERN: "*.rs"
+  rules:
+    - exists:
+      - "**/*.rs"
+    - if: $GENERATE_TESTS == "true"
+
+# Plugin building template
+build:plugins:
+  extends: .install_uft
+  stage: build
+  script:
+    - mkdir -p plugins-output
+    - echo "Building IDE plugins..."
+    - ./uft plugin zed --output plugins-output/ || echo "Zed plugin build failed"
+    - ./uft plugin vscode --output plugins-output/ || echo "VSCode plugin build failed"
+    - ./uft plugin spring --output plugins-output/ || echo "Spring plugin build failed"
+  artifacts:
+    paths:
+      - plugins-output/
+    expire_in: 1 week
+  rules:
+    - if: $BUILD_PLUGINS == "true"
+  allow_failure: true

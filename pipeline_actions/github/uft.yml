@@ -1,0 +1,375 @@
+# GitHub Actions workflow for Unified Testing Framework
+# Copy this file to .github/workflows/unified-testing.yml in your repository
+
+name: Unified Testing Framework
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      generate_tests:
+        description: 'Generate tests for detected files'
+        required: false
+        default: 'true'
+        type: boolean
+      build_plugins:
+        description: 'Build IDE plugins'
+        required: false
+        default: 'false'
+        type: boolean
+      custom_files:
+        description: 'Specific files to analyze (space-separated)'
+        required: false
+        type: string
+
+env:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Build or install uft binary
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      has-js: ${{ steps.detect.outputs.has-js }}
+      has-python: ${{ steps.detect.outputs.has-python }}
+      has-rust: ${{ steps.detect.outputs.has-rust }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Detect file types
+        id: detect
+        run: |
+          echo "has-js=$(find . -name '*.js' -o -name '*.jsx' -o -name '*.ts' -o -name '*.tsx' | head -1 | wc -l)" >> $GITHUB_OUTPUT
+          echo "has-python=$(find . -name '*.py' | head -1 | wc -l)" >> $GITHUB_OUTPUT
+          echo "has-rust=$(find . -name '*.rs' | head -1 | wc -l)" >> $GITHUB_OUTPUT
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Clone and build uft
+        run: |
+          git clone https://github.com/unified-testing/unified-test-framework.git
+          cd unified-test-framework
+          cargo build --release --bin uft
+          cp target/release/uft ../uft
+          chmod +x ../uft
+
+      - name: Upload uft binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: uft
+          path: uft
+          retention-days: 1
+
+  # Analyze JavaScript/TypeScript files
+  analyze-javascript:
+    runs-on: ubuntu-latest
+    needs: setup
+    if: needs.setup.outputs.has-js == '1'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download uft binary
+        uses: actions/download-artifact@v4
+        with:
+          name: uft
+
+      - name: Make binary executable
+        run: chmod +x uft
+
+      - name: Analyze JavaScript/TypeScript files
+        run: |
+          mkdir -p analysis-results
+          echo "Analyzing JavaScript/TypeScript files..."
+          find . -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" | while read file; do
+            echo "::group::Analyzing $file"
+            ./uft analyze "$file" | tee "analysis-results/$(basename "$file").analysis" || echo "::warning::Analysis failed for $file"
+            echo "::endgroup::"
+          done
+
+      - name: Upload analysis results
+        uses: actions/upload-artifact@v4
+        with:
+          name: analysis-results-javascript
+          path: analysis-results/
+          retention-days: 7
+
+  # Analyze Python files
+  analyze-python:
+    runs-on: ubuntu-latest
+    needs: setup
+    if: needs.setup.outputs.has-python == '1'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download uft binary
+        uses: actions/download-artifact@v4
+        with:
+          name: uft
+
+      - name: Make binary executable
+        run: chmod +x uft
+
+      - name: Analyze Python files
+        run: |
+          mkdir -p analysis-results
+          echo "Analyzing Python files..."
+          find . -name "*.py" | while read file; do
+            echo "::group::Analyzing $file"
+            ./uft analyze "$file" | tee "analysis-results/$(basename "$file").analysis" || echo "::warning::Analysis failed for $file"
+            echo "::endgroup::"
+          done
+
+      - name: Upload analysis results
+        uses: actions/upload-artifact@v4
+        with:
+          name: analysis-results-python
+          path: analysis-results/
+          retention-days: 7
+
+  # Analyze Rust files
+  analyze-rust:
+    runs-on: ubuntu-latest
+    needs: setup
+    if: needs.setup.outputs.has-rust == '1'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download uft binary
+        uses: actions/download-artifact@v4
+        with:
+          name: uft
+
+      - name: Make binary executable
+        run: chmod +x uft
+
+      - name: Analyze Rust files
+        run: |
+          mkdir -p analysis-results
+          echo "Analyzing Rust files..."
+          find . -name "*.rs" | while read file; do
+            echo "::group::Analyzing $file"
+            ./uft analyze "$file" | tee "analysis-results/$(basename "$file").analysis" || echo "::warning::Analysis failed for $file"
+            echo "::endgroup::"
+          done
+
+      - name: Upload analysis results
+        uses: actions/upload-artifact@v4
+        with:
+          name: analysis-results-rust
+          path: analysis-results/
+          retention-days: 7
+
+  # Generate tests for JavaScript/TypeScript
+  generate-tests-javascript:
+    runs-on: ubuntu-latest
+    needs: setup
+    if: needs.setup.outputs.has-js == '1' && (github.event.inputs.generate_tests == 'true' || github.event_name != 'workflow_dispatch')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download uft binary
+        uses: actions/download-artifact@v4
+        with:
+          name: uft
+
+      - name: Make binary executable
+        run: chmod +x uft
+
+      - name: Generate tests for JavaScript/TypeScript
+        run: |
+          mkdir -p generated-tests/javascript
+          echo "Generating tests for JavaScript/TypeScript files..."
+          find . -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" | while read file; do
+            echo "::group::Generating tests for $file"
+            ./uft generate "$file" --output generated-tests/javascript/ || echo "::warning::Test generation failed for $file"
+            echo "::endgroup::"
+          done
+
+      - name: Upload generated tests
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-tests-javascript
+          path: generated-tests/
+          retention-days: 7
+
+  # Generate tests for Python
+  generate-tests-python:
+    runs-on: ubuntu-latest
+    needs: setup
+    if: needs.setup.outputs.has-python == '1' && (github.event.inputs.generate_tests == 'true' || github.event_name != 'workflow_dispatch')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download uft binary
+        uses: actions/download-artifact@v4
+        with:
+          name: uft
+
+      - name: Make binary executable
+        run: chmod +x uft
+
+      - name: Generate tests for Python
+        run: |
+          mkdir -p generated-tests/python
+          echo "Generating tests for Python files..."
+          find . -name "*.py" | while read file; do
+            echo "::group::Generating tests for $file"
+            ./uft generate "$file" --output generated-tests/python/ || echo "::warning::Test generation failed for $file"
+            echo "::endgroup::"
+          done
+
+      - name: Upload generated tests
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-tests-python
+          path: generated-tests/
+          retention-days: 7
+
+  # Generate tests for Rust
+  generate-tests-rust:
+    runs-on: ubuntu-latest
+    needs: setup
+    if: needs.setup.outputs.has-rust == '1' && (github.event.inputs.generate_tests == 'true' || github.event_name != 'workflow_dispatch')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download uft binary
+        uses: actions/download-artifact@v4
+        with:
+          name: uft
+
+      - name: Make binary executable
+        run: chmod +x uft
+
+      - name: Generate tests for Rust
+        run: |
+          mkdir -p generated-tests/rust
+          echo "Generating tests for Rust files..."
+          find . -name "*.rs" | while read file; do
+            echo "::group::Generating tests for $file"
+            ./uft generate "$file" --output generated-tests/rust/ || echo "::warning::Test generation failed for $file"
+            echo "::endgroup::"
+          done
+
+      - name: Upload generated tests
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-tests-rust
+          path: generated-tests/
+          retention-days: 7
+
+  # Custom analysis for specific files
+  analyze-custom:
+    runs-on: ubuntu-latest
+    needs: setup
+    if: github.event.inputs.custom_files != ''
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download uft binary
+        uses: actions/download-artifact@v4
+        with:
+          name: uft
+
+      - name: Make binary executable
+        run: chmod +x uft
+
+      - name: Analyze custom files
+        run: |
+          echo "Analyzing custom files: ${{ github.event.inputs.custom_files }}"
+          for file in ${{ github.event.inputs.custom_files }}; do
+            if [ -f "$file" ]; then
+              echo "::group::Analyzing $file"
+              ./uft analyze "$file" || echo "::warning::Analysis failed for $file"
+              echo "::endgroup::"
+            else
+              echo "::warning::File not found: $file"
+            fi
+          done
+
+  # Build IDE plugins
+  build-plugins:
+    runs-on: ubuntu-latest
+    needs: setup
+    if: github.event.inputs.build_plugins == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download uft binary
+        uses: actions/download-artifact@v4
+        with:
+          name: uft
+
+      - name: Make binary executable
+        run: chmod +x uft
+
+      - name: Build IDE plugins
+        run: |
+          mkdir -p plugins-output
+          echo "::group::Building Zed plugin"
+          ./uft plugin zed --output plugins-output/ || echo "::warning::Zed plugin build failed"
+          echo "::endgroup::"
+          
+          echo "::group::Building VSCode plugin"
+          ./uft plugin vscode --output plugins-output/ || echo "::warning::VSCode plugin build failed"
+          echo "::endgroup::"
+          
+          echo "::group::Building Spring IDE plugin"
+          ./uft plugin spring --output plugins-output/ || echo "::warning::Spring IDE plugin build failed"
+          echo "::endgroup::"
+
+      - name: Upload IDE plugins
+        uses: actions/upload-artifact@v4
+        with:
+          name: ide-plugins
+          path: plugins-output/
+          retention-days: 7
+
+  # Summary job
+  summary:
+    runs-on: ubuntu-latest
+    needs: [setup, analyze-javascript, analyze-python, analyze-rust, generate-tests-javascript, generate-tests-python, generate-tests-rust]
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Unified Testing Framework Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### File Detection Results" >> $GITHUB_STEP_SUMMARY
+          echo "- JavaScript/TypeScript files: ${{ needs.setup.outputs.has-js == '1' && '✅ Found' || '❌ None' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Python files: ${{ needs.setup.outputs.has-python == '1' && '✅ Found' || '❌ None' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Rust files: ${{ needs.setup.outputs.has-rust == '1' && '✅ Found' || '❌ None' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Job Results" >> $GITHUB_STEP_SUMMARY
+          echo "- Analysis JavaScript: ${{ needs.analyze-javascript.result || 'Skipped' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Analysis Python: ${{ needs.analyze-python.result || 'Skipped' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Analysis Rust: ${{ needs.analyze-rust.result || 'Skipped' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Generate Tests JavaScript: ${{ needs.generate-tests-javascript.result || 'Skipped' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Generate Tests Python: ${{ needs.generate-tests-python.result || 'Skipped' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Generate Tests Rust: ${{ needs.generate-tests-rust.result || 'Skipped' }}" >> $GITHUB_STEP_SUMMARY

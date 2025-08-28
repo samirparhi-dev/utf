@@ -1,0 +1,28 @@
+id = "unified-testing"
+name = "Unified Testing Framework"
+description = "Automatic test generation for multiple languages"
+version = "0.1.0"
+schema_version = 1
+
+[author]
+name = "Unified Testing Team"
+email = "team@unified-testing.dev"
+
+[[grammars]]
+name = "unified-testing"
+
+[[languages]]
+name = "JavaScript"
+extensions = ["js", "jsx"]
+
+[[languages]]  
+name = "TypeScript"
+extensions = ["ts", "tsx"]
+
+[[languages]]
+name = "Python" 
+extensions = ["py"]
+
+[[languages]]
+name = "Rust"
+extensions = ["rs"]

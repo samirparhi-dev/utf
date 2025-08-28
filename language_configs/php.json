@@ -1,0 +1,45 @@
+{
+  "name": "php",
+  "extensions": ["php"],
+  "framework": "phpunit",
+  "patterns": [
+    {
+      "name": "function",
+      "pattern_type": "function",
+      "regex": "(?:public|private|protected)?\\s*function\\s+(\\w+)\\s*\\(([^)]*)\\)",
+      "capture_groups": {
+        "name": 1,
+        "parameters": 2,
+        "return_type": null,
+        "parameter_separator": ",",
+        "parameter_format": "name_only"
+      },
+      "confidence": 0.9
+    },
+    {
+      "name": "class",
+      "pattern_type": "function",
+      "regex": "class\\s+(\\w+)",
+      "capture_groups": {
+        "name": 1,
+        "parameters": null,
+        "return_type": null,
+        "parameter_separator": ",",
+        "parameter_format": "name_only"
+      },
+      "confidence": 0.8
+    }
+  ],
+  "test_template": {
+    "setup": "<?php\n\nuse PHPUnit\\Framework\\TestCase;\n\nclass {{CLASS_NAME}}Test extends TestCase\n{",
+    "test_function": "    public function {{TEST_NAME}}(): void\n    {\n        // {{TEST_DESCRIPTION}}\n        // TODO: Implement test logic\n    }",
+    "teardown": "}",
+    "file_extension": "Test.php",
+    "placeholders": {
+      "CLASS_NAME": "TestClass"
+    }
+  },
+  "imports": [
+    "PHPUnit\\Framework\\TestCase"
+  ]
+}

@@ -1,0 +1,238 @@
+# Azure DevOps Template for Unified Testing Framework
+# Reference this template in your azure-pipelines.yml with:
+# resources:
+#   repositories:
+#     - repository: unified-testing
+#       type: github
+#       name: unified-testing/unified-test-framework
+#       endpoint: your-service-connection
+# 
+# extends:
+#   template: pipeline_actions/azure/unified-testing-template.yml@unified-testing
+
+parameters:
+  - name: generateTests
+    displayName: 'Generate tests for detected files'
+    type: boolean
+    default: true
+  - name: buildPlugins
+    displayName: 'Build IDE plugins'
+    type: boolean
+    default: false
+  - name: customFiles
+    displayName: 'Specific files to analyze (space-separated)'
+    type: string
+    default: ''
+  - name: languages
+    displayName: 'Languages to analyze (comma-separated: javascript,python,rust)'
+    type: string
+    default: 'auto'
+  - name: outputDir
+    displayName: 'Output directory for generated tests'
+    type: string
+    default: 'generated-tests'
+  - name: vmImage
+    displayName: 'VM Image to use'
+    type: string
+    default: 'ubuntu-latest'
+
+variables:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+
+stages:
+  - stage: Setup
+    displayName: 'Setup and Build'
+    jobs:
+      - job: BuildUnifiedTesting
+        displayName: 'Build Unified Testing Framework'
+        pool:
+          vmImage: ${{ parameters.vmImage }}
+        steps:
+          - task: Cache@2
+            displayName: 'Cache Cargo registry'
+            inputs:
+              key: 'cargo-unified-testing | "$(Agent.OS)" | **/Cargo.lock'
+              restoreKeys: |
+                cargo-unified-testing | "$(Agent.OS)"
+                cargo-unified-testing
+              path: |
+                ~/.cargo/registry
+                ~/.cargo/git
+                target
+
+          - script: |
+              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+              source ~/.cargo/env
+              rustup update stable
+              rustup default stable
+            displayName: 'Install Rust'
+
+          - script: |
+              git clone https://github.com/unified-testing/unified-test-framework.git /tmp/unified-test-framework
+              cd /tmp/unified-test-framework
+              source ~/.cargo/env
+              cargo build --release --bin uft
+              cp target/release/uft $(Build.ArtifactStagingDirectory)/uft
+            displayName: 'Build uft binary'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish uft binary'
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)/uft'
+              artifact: 'uft'
+              publishLocation: 'pipeline'
+
+      - job: DetectFiles
+        displayName: 'Detect File Types'
+        pool:
+          vmImage: ${{ parameters.vmImage }}
+        steps:
+          - script: |
+              echo "##vso[task.setvariable variable=hasJavaScript;isOutput=true]$(find . -name '*.js' -o -name '*.jsx' -o -name '*.ts' -o -name '*.tsx' | head -1 | wc -l)"
+              echo "##vso[task.setvariable variable=hasPython;isOutput=true]$(find . -name '*.py' | head -1 | wc -l)"
+              echo "##vso[task.setvariable variable=hasRust;isOutput=true]$(find . -name '*.rs' | head -1 | wc -l)"
+            name: 'detectFiles'
+            displayName: 'Detect file types'
+
+  - stage: Analyze
+    displayName: 'Code Analysis'
+    dependsOn: Setup
+    variables:
+      hasJavaScript: $[ stageDependencies.Setup.DetectFiles.outputs['detectFiles.hasJavaScript'] ]
+      hasPython: $[ stageDependencies.Setup.DetectFiles.outputs['detectFiles.hasPython'] ]
+      hasRust: $[ stageDependencies.Setup.DetectFiles.outputs['detectFiles.hasRust'] ]
+    jobs:
+      - template: analyze-job-template.yml
+        parameters:
+          jobName: 'AnalyzeJavaScript'
+          displayName: 'Analyze JavaScript/TypeScript'
+          condition: eq(variables.hasJavaScript, '1')
+          filePattern: '*.js -o -name *.jsx -o -name *.ts -o -name *.tsx'
+          artifactName: 'analysis-results-javascript'
+          vmImage: ${{ parameters.vmImage }}
+
+      - template: analyze-job-template.yml
+        parameters:
+          jobName: 'AnalyzePython'
+          displayName: 'Analyze Python'
+          condition: eq(variables.hasPython, '1')
+          filePattern: '*.py'
+          artifactName: 'analysis-results-python'
+          vmImage: ${{ parameters.vmImage }}
+
+      - template: analyze-job-template.yml
+        parameters:
+          jobName: 'AnalyzeRust'
+          displayName: 'Analyze Rust'
+          condition: eq(variables.hasRust, '1')
+          filePattern: '*.rs'
+          artifactName: 'analysis-results-rust'
+          vmImage: ${{ parameters.vmImage }}
+
+      - job: AnalyzeCustom
+        displayName: 'Analyze Custom Files'
+        pool:
+          vmImage: ${{ parameters.vmImage }}
+        condition: ne('${{ parameters.customFiles }}', '')
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download uft binary'
+            inputs:
+              artifact: 'uft'
+              path: '$(System.DefaultWorkingDirectory)'
+
+          - script: |
+              chmod +x uft
+              echo "Analyzing custom files: ${{ parameters.customFiles }}"
+              for file in ${{ parameters.customFiles }}; do
+                if [ -f "$file" ]; then
+                  echo "##[group]Analyzing $file"
+                  ./uft analyze "$file" || echo "##vso[task.logissue type=warning]Analysis failed for $file"
+                  echo "##[endgroup]"
+                else
+                  echo "##vso[task.logissue type=warning]File not found: $file"
+                fi
+              done
+            displayName: 'Analyze custom files'
+
+  - ${{ if eq(parameters.generateTests, true) }}:
+    - stage: GenerateTests
+      displayName: 'Generate Tests'
+      dependsOn: 
+        - Setup
+        - Analyze
+      variables:
+        hasJavaScript: $[ stageDependencies.Setup.DetectFiles.outputs['detectFiles.hasJavaScript'] ]
+        hasPython: $[ stageDependencies.Setup.DetectFiles.outputs['detectFiles.hasPython'] ]
+        hasRust: $[ stageDependencies.Setup.DetectFiles.outputs['detectFiles.hasRust'] ]
+      jobs:
+        - template: generate-tests-job-template.yml
+          parameters:
+            jobName: 'GenerateTestsJavaScript'
+            displayName: 'Generate Tests - JavaScript/TypeScript'
+            condition: eq(variables.hasJavaScript, '1')
+            filePattern: '*.js -o -name *.jsx -o -name *.ts -o -name *.tsx'
+            outputDir: '${{ parameters.outputDir }}/javascript'
+            artifactName: 'generated-tests-javascript'
+            vmImage: ${{ parameters.vmImage }}
+
+        - template: generate-tests-job-template.yml
+          parameters:
+            jobName: 'GenerateTestsPython'
+            displayName: 'Generate Tests - Python'
+            condition: eq(variables.hasPython, '1')
+            filePattern: '*.py'
+            outputDir: '${{ parameters.outputDir }}/python'
+            artifactName: 'generated-tests-python'
+            vmImage: ${{ parameters.vmImage }}
+
+        - template: generate-tests-job-template.yml
+          parameters:
+            jobName: 'GenerateTestsRust'
+            displayName: 'Generate Tests - Rust'
+            condition: eq(variables.hasRust, '1')
+            filePattern: '*.rs'
+            outputDir: '${{ parameters.outputDir }}/rust'
+            artifactName: 'generated-tests-rust'
+            vmImage: ${{ parameters.vmImage }}
+
+  - ${{ if eq(parameters.buildPlugins, true) }}:
+    - stage: BuildPlugins
+      displayName: 'Build IDE Plugins'
+      dependsOn: Setup
+      jobs:
+        - job: BuildIDEPlugins
+          displayName: 'Build IDE Plugins'
+          pool:
+            vmImage: ${{ parameters.vmImage }}
+          steps:
+            - task: DownloadPipelineArtifact@2
+              displayName: 'Download uft binary'
+              inputs:
+                artifact: 'uft'
+                path: '$(System.DefaultWorkingDirectory)'
+
+            - script: |
+                chmod +x uft
+                mkdir -p plugins-output
+                
+                echo "##[group]Building Zed plugin"
+                ./uft plugin zed --output plugins-output/ || echo "##vso[task.logissue type=warning]Zed plugin build failed"
+                echo "##[endgroup]"
+                
+                echo "##[group]Building VSCode plugin"
+                ./uft plugin vscode --output plugins-output/ || echo "##vso[task.logissue type=warning]VSCode plugin build failed"
+                echo "##[endgroup]"
+                
+                echo "##[group]Building Spring IDE plugin"
+                ./uft plugin spring --output plugins-output/ || echo "##vso[task.logissue type=warning]Spring IDE plugin build failed"
+                echo "##[endgroup]"
+              displayName: 'Build IDE plugins'
+
+            - task: PublishPipelineArtifact@1
+              displayName: 'Publish IDE plugins'
+              inputs:
+                targetPath: 'plugins-output'
+                artifact: 'ide-plugins'
+                publishLocation: 'pipeline'

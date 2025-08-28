@@ -1,0 +1,246 @@
+# GitLab CI pipeline for Unified Testing Framework
+# Copy this file to the root of your repository as .gitlab-ci.yml
+
+stages:
+  - build
+  - test
+  - analyze
+  - generate-tests
+
+variables:
+  CARGO_HOME: $CI_PROJECT_DIR/.cargo
+  RUST_BACKTRACE: "1"
+  UNIFIED_TESTING_VERSION: "latest"
+
+# Cache configuration for faster builds
+cache:
+  key: 
+    files:
+      - Cargo.lock
+  paths:
+    - .cargo/
+    - target/
+
+# Build the uft binary
+build:uft:
+  stage: build
+  image: rust:1.70
+  script:
+    - echo "Building Unified Testing Framework..."
+    - git clone https://github.com/unified-testing/unified-test-framework.git
+    - cd unified-test-framework
+    - cargo build --release --bin uft
+    - cp target/release/uft ../uft
+  artifacts:
+    paths:
+      - uft
+    expire_in: 1 hour
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Install pre-built binary (alternative to building)
+install:uft-prebuilt:
+  stage: build
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache curl tar gzip
+  script:
+    - echo "Installing pre-built Unified Testing Framework..."
+    - |
+      # Detect architecture
+      ARCH=$(uname -m)
+      case $ARCH in
+        x86_64) ARCH="x86_64" ;;
+        aarch64) ARCH="aarch64" ;;
+        *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
+      esac
+      
+      # Download and extract binary (replace with actual release URL)
+      curl -L -o uft.tar.gz \
+        "https://github.com/unified-testing/unified-test-framework/releases/latest/download/uft-linux-${ARCH}.tar.gz"
+      tar -xzf uft.tar.gz
+      chmod +x uft
+  artifacts:
+    paths:
+      - uft
+    expire_in: 1 hour
+  rules:
+    - if: $USE_PREBUILT_BINARY == "true"
+
+# Analyze JavaScript/TypeScript files
+analyze:javascript:
+  stage: analyze
+  image: alpine:latest
+  dependencies:
+    - build:uft
+  script:
+    - echo "Analyzing JavaScript/TypeScript files..."
+    - find . -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" | while read file; do
+        echo "Analyzing: $file"
+        ./uft analyze "$file" || echo "Analysis failed for $file"
+      done
+  artifacts:
+    reports:
+      junit: analysis-results.xml
+    paths:
+      - analysis-*.json
+    expire_in: 1 week
+  rules:
+    - exists:
+      - "**/*.js"
+      - "**/*.jsx" 
+      - "**/*.ts"
+      - "**/*.tsx"
+
+# Analyze Python files
+analyze:python:
+  stage: analyze
+  image: alpine:latest
+  dependencies:
+    - build:uft
+  script:
+    - echo "Analyzing Python files..."
+    - find . -name "*.py" | while read file; do
+        echo "Analyzing: $file"
+        ./uft analyze "$file" || echo "Analysis failed for $file"
+      done
+  artifacts:
+    reports:
+      junit: analysis-results-python.xml
+    paths:
+      - analysis-*.json
+    expire_in: 1 week
+  rules:
+    - exists:
+      - "**/*.py"
+
+# Analyze Rust files
+analyze:rust:
+  stage: analyze
+  image: alpine:latest
+  dependencies:
+    - build:uft
+  script:
+    - echo "Analyzing Rust files..."
+    - find . -name "*.rs" | while read file; do
+        echo "Analyzing: $file"
+        ./uft analyze "$file" || echo "Analysis failed for $file"
+      done
+  artifacts:
+    reports:
+      junit: analysis-results-rust.xml
+    paths:
+      - analysis-*.json
+    expire_in: 1 week
+  rules:
+    - exists:
+      - "**/*.rs"
+
+# Generate tests for JavaScript/TypeScript
+generate-tests:javascript:
+  stage: generate-tests
+  image: alpine:latest
+  dependencies:
+    - build:uft
+  script:
+    - echo "Generating tests for JavaScript/TypeScript files..."
+    - mkdir -p generated-tests/javascript
+    - find . -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" | while read file; do
+        echo "Generating tests for: $file"
+        ./uft generate "$file" --output generated-tests/javascript/ || echo "Test generation failed for $file"
+      done
+  artifacts:
+    paths:
+      - generated-tests/
+    expire_in: 1 week
+  rules:
+    - exists:
+      - "**/*.js"
+      - "**/*.jsx"
+      - "**/*.ts" 
+      - "**/*.tsx"
+    - if: $GENERATE_TESTS == "true"
+
+# Generate tests for Python
+generate-tests:python:
+  stage: generate-tests
+  image: alpine:latest
+  dependencies:
+    - build:uft
+  script:
+    - echo "Generating tests for Python files..."
+    - mkdir -p generated-tests/python
+    - find . -name "*.py" | while read file; do
+        echo "Generating tests for: $file"
+        ./uft generate "$file" --output generated-tests/python/ || echo "Test generation failed for $file"
+      done
+  artifacts:
+    paths:
+      - generated-tests/
+    expire_in: 1 week
+  rules:
+    - exists:
+      - "**/*.py"
+    - if: $GENERATE_TESTS == "true"
+
+# Generate tests for Rust
+generate-tests:rust:
+  stage: generate-tests
+  image: alpine:latest
+  dependencies:
+    - build:uft
+  script:
+    - echo "Generating tests for Rust files..."
+    - mkdir -p generated-tests/rust
+    - find . -name "*.rs" | while read file; do
+        echo "Generating tests for: $file"
+        ./uft generate "$file" --output generated-tests/rust/ || echo "Test generation failed for $file"
+      done
+  artifacts:
+    paths:
+      - generated-tests/
+    expire_in: 1 week
+  rules:
+    - exists:
+      - "**/*.rs"
+    - if: $GENERATE_TESTS == "true"
+
+# Custom job for specific files
+analyze:custom:
+  stage: analyze
+  image: alpine:latest
+  dependencies:
+    - build:uft
+  script:
+    - echo "Running custom analysis..."
+    - |
+      if [ ! -z "$UNIFIED_TESTING_FILES" ]; then
+        for file in $UNIFIED_TESTING_FILES; do
+          echo "Analyzing: $file"
+          ./uft analyze "$file"
+        done
+      fi
+  rules:
+    - if: $UNIFIED_TESTING_FILES
+  allow_failure: true
+
+# Generate IDE plugins
+build:plugins:
+  stage: build
+  image: alpine:latest
+  dependencies:
+    - build:uft
+  script:
+    - echo "Building IDE plugins..."
+    - mkdir -p plugins-output
+    - ./uft plugin zed --output plugins-output/
+    - ./uft plugin vscode --output plugins-output/
+    - ./uft plugin spring --output plugins-output/
+  artifacts:
+    paths:
+      - plugins-output/
+    expire_in: 1 week
+  rules:
+    - if: $BUILD_PLUGINS == "true"
+  allow_failure: true

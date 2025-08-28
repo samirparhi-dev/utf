@@ -1,0 +1,46 @@
+{
+  "name": "kotlin",
+  "extensions": ["kt"],
+  "framework": "junit5",
+  "patterns": [
+    {
+      "name": "function",
+      "pattern_type": "function",
+      "regex": "fun\\s+(\\w+)\\s*\\(([^)]*)\\)(?:\\s*:\\s*(\\w+))?",
+      "capture_groups": {
+        "name": 1,
+        "parameters": 2,
+        "return_type": 3,
+        "parameter_separator": ",",
+        "parameter_format": "name_type"
+      },
+      "confidence": 0.9
+    },
+    {
+      "name": "class",
+      "pattern_type": "function",
+      "regex": "class\\s+(\\w+)",
+      "capture_groups": {
+        "name": 1,
+        "parameters": null,
+        "return_type": null,
+        "parameter_separator": ",",
+        "parameter_format": "name_only"
+      },
+      "confidence": 0.8
+    }
+  ],
+  "test_template": {
+    "setup": "import org.junit.jupiter.api.Test\nimport org.junit.jupiter.api.Assertions.*\n\nclass {{CLASS_NAME}}Test {",
+    "test_function": "    @Test\n    fun {{TEST_NAME}}() {\n        // {{TEST_DESCRIPTION}}\n        // TODO: Implement test logic\n    }",
+    "teardown": "}",
+    "file_extension": "Test.kt",
+    "placeholders": {
+      "CLASS_NAME": "TestClass"
+    }
+  },
+  "imports": [
+    "org.junit.jupiter.api.Test",
+    "org.junit.jupiter.api.Assertions.*"
+  ]
+}

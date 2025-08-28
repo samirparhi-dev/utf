@@ -1,0 +1,22 @@
+[package]
+name = "unified-test-framework"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+anyhow = "1.0"
+regex = "1.0"
+uuid = { version = "1.0", features = ["v4"] }
+async-trait = "0.1"
+clap = { version = "4.0", features = ["derive"] }
+
+[dev-dependencies]
+tempfile = "3.0"
+
+[[bin]]
+name = "uft"
+path = "src/bin/unified-testing.rs"
+

@@ -1,0 +1,66 @@
+# Example GitLab CI usage of Unified Testing Framework
+# Copy this to your .gitlab-ci.yml file
+
+stages:
+  - analyze
+  - generate-tests
+  - build
+
+# Include the Unified Testing Framework template
+include:
+  - remote: 'https://raw.githubusercontent.com/unified-testing/unified-test-framework/main/pipeline_actions/gitlab/uft-template.yml'
+
+variables:
+  GENERATE_TESTS: "true"  # Enable test generation
+  BUILD_PLUGINS: "false"  # Disable plugin building by default
+
+# The template provides these jobs automatically:
+# - analyze:javascript
+# - analyze:typescript  
+# - analyze:python
+# - analyze:rust
+# - generate_tests:javascript
+# - generate_tests:typescript
+# - generate_tests:python
+# - generate_tests:rust
+# - build:plugins
+
+# Custom analysis job for specific files
+analyze:custom:
+  extends: .analyze_template
+  variables:
+    ANALYZE_FILES: "src/main.js src/utils.py lib.rs"
+  rules:
+    - if: $CI_COMMIT_MESSAGE =~ /analyze custom/
+
+# Custom test generation for specific directory
+generate_tests:src_only:
+  extends: .generate_tests_template
+  script:
+    - mkdir -p generated-tests
+    - find src/ -name "*.js" -o -name "*.py" -o -name "*.rs" | while read file; do
+        echo "Generating tests for: $file"
+        ./uft generate "$file" --output generated-tests/
+      done
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CUSTOM_GENERATE == "true"
+
+# Example of using the generated tests in your actual test pipeline
+run_generated_tests:javascript:
+  stage: test
+  image: node:18
+  dependencies:
+    - generate_tests:javascript
+  script:
+    - npm install
+    - npm install --save-dev jest  # Install test runner
+    - |
+      # Run the generated tests
+      if [ -d "generated-tests" ]; then
+        find generated-tests -name "*.test.js" -exec npm test {} \;
+      fi
+  rules:
+    - exists:
+      - "**/*.js"
+    - if: $GENERATE_TESTS == "true"

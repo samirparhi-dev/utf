@@ -1,0 +1,46 @@
+{
+  "name": "swift",
+  "extensions": ["swift"],
+  "framework": "xctest",
+  "patterns": [
+    {
+      "name": "function",
+      "pattern_type": "function",
+      "regex": "func\\s+(\\w+)\\s*\\(([^)]*)\\)(?:\\s*->\\s*(\\w+))?",
+      "capture_groups": {
+        "name": 1,
+        "parameters": 2,
+        "return_type": 3,
+        "parameter_separator": ",",
+        "parameter_format": "name_type"
+      },
+      "confidence": 0.9
+    },
+    {
+      "name": "class",
+      "pattern_type": "function",
+      "regex": "class\\s+(\\w+)",
+      "capture_groups": {
+        "name": 1,
+        "parameters": null,
+        "return_type": null,
+        "parameter_separator": ",",
+        "parameter_format": "name_only"
+      },
+      "confidence": 0.8
+    }
+  ],
+  "test_template": {
+    "setup": "import XCTest\n@testable import {{MODULE_NAME}}\n\nclass {{CLASS_NAME}}Tests: XCTestCase {",
+    "test_function": "    func {{TEST_NAME}}() {\n        // {{TEST_DESCRIPTION}}\n        // TODO: Implement test logic\n    }",
+    "teardown": "}",
+    "file_extension": "Tests.swift",
+    "placeholders": {
+      "CLASS_NAME": "TestClass",
+      "MODULE_NAME": "YourModule"
+    }
+  },
+  "imports": [
+    "XCTest"
+  ]
+}

@@ -1,0 +1,106 @@
+<idea-plugin>
+    <id>com.unified.testing.plugin</id>
+    <name>Unified Testing Framework</name>
+    <version>1.0.0</version>
+    <vendor email="support@unified-testing.com" url="https://github.com/unified-testing/unified-test-framework">
+        Unified Testing Framework
+    </vendor>
+
+    <description><![CDATA[
+        <h1>Unified Testing Framework Plugin</h1>
+        <p>Automatically generate unit tests for JavaScript, TypeScript, Python, and Rust code.</p>
+        
+        <h2>Features:</h2>
+        <ul>
+            <li>Pattern detection for functions, form validation, and API calls</li>
+            <li>Automatic test generation for Jest, Pytest, and Cargo test frameworks</li>
+            <li>Code analysis with confidence scoring</li>
+            <li>Support for multiple programming languages</li>
+        </ul>
+        
+        <h2>Usage:</h2>
+        <ul>
+            <li>Right-click on a supported file (.js, .jsx, .ts, .tsx, .py, .rs)</li>
+            <li>Select "Generate Tests" or "Analyze Patterns" from the context menu</li>
+            <li>Use the Tools menu for quick access to plugin features</li>
+        </ul>
+        
+        <h2>Requirements:</h2>
+        <p>The unified-testing binary must be installed and available in your system PATH.</p>
+    ]]></description>
+
+    <change-notes><![CDATA[
+        <h2>Version 1.0.0</h2>
+        <ul>
+            <li>Initial release</li>
+            <li>Support for JavaScript, TypeScript, Python, and Rust</li>
+            <li>Test generation and pattern analysis</li>
+            <li>IntelliJ IDEA and Spring Tool Suite compatibility</li>
+        </ul>
+    ]]></change-notes>
+
+    <!-- Plugin compatibility -->
+    <idea-version since-build="203.0"/>
+    
+    <!-- Compatible with IntelliJ IDEA, WebStorm, PyCharm, CLion, and Spring Tool Suite -->
+    <depends>com.intellij.modules.platform</depends>
+    <depends optional="true" config-file="javascript.xml">com.intellij.modules.javascript</depends>
+    <depends optional="true" config-file="python.xml">com.intellij.modules.python</depends>
+    <depends optional="true" config-file="rust.xml">org.rust.lang</depends>
+
+    <!-- Plugin extensions -->
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- File type associations -->
+        <fileType 
+            name="JavaScript" 
+            implementationClass="com.intellij.lang.javascript.JavaScriptFileType" 
+            fieldName="INSTANCE" 
+            language="JavaScript" 
+            extensions="js;jsx"/>
+        <fileType 
+            name="TypeScript" 
+            implementationClass="com.intellij.lang.typescript.TypeScriptFileType" 
+            fieldName="INSTANCE" 
+            language="TypeScript" 
+            extensions="ts;tsx"/>
+    </extensions>
+
+    <!-- Plugin actions -->
+    <actions>
+        <!-- Main action group -->
+        <group id="UnifiedTestingGroup" text="Unified Testing" description="Unified Testing Framework actions">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            
+            <action id="UnifiedTesting.GenerateTests"
+                    class="com.unified.testing.UnifiedTestingPlugin$GenerateTestsAction"
+                    text="Generate Tests"
+                    description="Generate unit tests for the selected file">
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt T"/>
+            </action>
+            
+            <action id="UnifiedTesting.AnalyzeFile"
+                    class="com.unified.testing.UnifiedTestingPlugin$AnalyzeFileAction"
+                    text="Analyze Patterns"
+                    description="Analyze testable patterns in the selected file">
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt A"/>
+            </action>
+        </group>
+    </actions>
+
+    <!-- Application components -->
+    <application-components>
+        <!-- Plugin initialization -->
+    </application-components>
+
+    <!-- Project components -->
+    <project-components>
+        <!-- Project-specific components -->
+    </project-components>
+
+    <!-- Module components -->
+    <module-components>
+        <!-- Module-specific components -->
+    </module-components>
+</idea-plugin>

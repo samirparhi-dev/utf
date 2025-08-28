@@ -1,0 +1,81 @@
+# Example GitHub Actions workflow using Unified Testing Framework
+# Copy this to .github/workflows/uft.yml in your repository
+
+name: Test Generation with Unified Testing Framework
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  uft:
+    runs-on: ubuntu-latest
+    name: Analyze and Generate Tests
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Option 1: Use the composite action (recommended)
+      - name: Run Unified Testing Framework
+        uses: unified-testing/unified-test-framework@v1
+        with:
+          generate-tests: true
+          languages: 'javascript,python,rust'
+          output-dir: 'generated-tests'
+          build-plugins: false
+          fail-on-analysis-error: false
+
+      # Option 2: Custom implementation
+      # - name: Setup and run Unified Testing
+      #   run: |
+      #     # Install Rust
+      #     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      #     source ~/.cargo/env
+      #     
+      #     # Clone and build uft
+      #     git clone https://github.com/unified-testing/unified-test-framework.git
+      #     cd unified-test-framework
+      #     cargo build --release --bin uft
+      #     cd ..
+      #     
+      #     # Analyze files
+      #     find . -name "*.js" -o -name "*.py" -o -name "*.rs" | while read file; do
+      #       ./unified-test-framework/target/release/uft analyze "$file"
+      #     done
+      #     
+      #     # Generate tests
+      #     find . -name "*.js" -o -name "*.py" -o -name "*.rs" | while read file; do
+      #       ./unified-test-framework/target/release/uft generate "$file" --output generated-tests/
+      #     done
+
+      - name: Upload generated tests
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-tests
+          path: generated-tests/
+          retention-days: 30
+
+      # Optional: Create a pull request with generated tests
+      - name: Create Pull Request with Generated Tests
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'Add auto-generated tests'
+          title: 'Auto-generated tests from Unified Testing Framework'
+          body: |
+            This PR contains automatically generated tests created by the Unified Testing Framework.
+            
+            ## Changes
+            - Added test files for detected functions and patterns
+            - Generated tests for JavaScript, Python, and Rust files
+            
+            ## Review Notes
+            - Please review the generated tests for accuracy
+            - Modify or extend tests as needed for your specific use cases
+            - Delete any tests that are not relevant
+          branch: feature/auto-generated-tests
+          delete-branch: true

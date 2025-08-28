@@ -1,0 +1,288 @@
+# GitHub Composite Action for Unified Testing Framework
+# This allows users to use the framework as a reusable action
+
+name: 'Unified Testing Framework'
+description: 'Automatically analyze and generate tests for multiple programming languages'
+author: 'Unified Testing Framework Team'
+
+branding:
+  icon: 'code'
+  color: 'blue'
+
+inputs:
+  files:
+    description: 'Specific files to analyze (space-separated). If not provided, will scan all supported files.'
+    required: false
+    default: ''
+  
+  languages:
+    description: 'Languages to process (comma-separated: javascript,python,rust). Default: all detected languages'
+    required: false
+    default: 'auto'
+  
+  generate-tests:
+    description: 'Whether to generate tests for analyzed files'
+    required: false
+    default: 'true'
+  
+  output-dir:
+    description: 'Output directory for generated tests'
+    required: false
+    default: 'generated-tests'
+  
+  analysis-output:
+    description: 'Output directory for analysis results'
+    required: false
+    default: 'analysis-results'
+  
+  build-plugins:
+    description: 'Whether to build IDE plugins'
+    required: false
+    default: 'false'
+  
+  uft-version:
+    description: 'Version of uft to use'
+    required: false
+    default: 'latest'
+  
+  fail-on-analysis-error:
+    description: 'Whether to fail the action if analysis fails for any file'
+    required: false
+    default: 'false'
+
+outputs:
+  analysis-results:
+    description: 'Path to analysis results directory'
+    value: ${{ steps.setup.outputs.analysis-results }}
+  
+  generated-tests:
+    description: 'Path to generated tests directory'
+    value: ${{ steps.setup.outputs.generated-tests }}
+  
+  plugins-path:
+    description: 'Path to generated IDE plugins'
+    value: ${{ steps.setup.outputs.plugins-path }}
+  
+  files-analyzed:
+    description: 'Number of files analyzed'
+    value: ${{ steps.analyze.outputs.files-analyzed }}
+  
+  tests-generated:
+    description: 'Number of test files generated'
+    value: ${{ steps.generate.outputs.tests-generated }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup directories and detect files
+      id: setup
+      shell: bash
+      run: |
+        # Create output directories
+        mkdir -p "${{ inputs.analysis-output }}"
+        mkdir -p "${{ inputs.output-dir }}"
+        
+        # Set output paths
+        echo "analysis-results=$(pwd)/${{ inputs.analysis-output }}" >> $GITHUB_OUTPUT
+        echo "generated-tests=$(pwd)/${{ inputs.output-dir }}" >> $GITHUB_OUTPUT
+        echo "plugins-path=$(pwd)/plugins-output" >> $GITHUB_OUTPUT
+        
+        # Detect files if not specified
+        if [ "${{ inputs.files }}" = "" ]; then
+          if [ "${{ inputs.languages }}" = "auto" ] || [[ "${{ inputs.languages }}" == *"javascript"* ]]; then
+            find . -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" > js_files.txt
+          fi
+          if [ "${{ inputs.languages }}" = "auto" ] || [[ "${{ inputs.languages }}" == *"python"* ]]; then
+            find . -name "*.py" > py_files.txt
+          fi
+          if [ "${{ inputs.languages }}" = "auto" ] || [[ "${{ inputs.languages }}" == *"rust"* ]]; then
+            find . -name "*.rs" > rs_files.txt
+          fi
+        else
+          echo "${{ inputs.files }}" | tr ' ' '\n' > custom_files.txt
+        fi
+
+    - name: Setup Rust and install uft
+      shell: bash
+      run: |
+        # Install Rust
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        source ~/.cargo/env
+        
+        # Clone and build uft
+        git clone https://github.com/unified-testing/unified-test-framework.git /tmp/unified-test-framework
+        cd /tmp/unified-test-framework
+        
+        if [ "${{ inputs.uft-version }}" != "latest" ]; then
+          git checkout "${{ inputs.uft-version }}"
+        fi
+        
+        cargo build --release --bin uft
+        cp target/release/uft ${{ github.workspace }}/uft
+        chmod +x ${{ github.workspace }}/uft
+
+    - name: Analyze files
+      id: analyze
+      shell: bash
+      run: |
+        cd ${{ github.workspace }}
+        files_analyzed=0
+        
+        # Function to analyze files
+        analyze_files() {
+          local file_list="$1"
+          local language="$2"
+          
+          if [ -f "$file_list" ] && [ -s "$file_list" ]; then
+            while IFS= read -r file; do
+              if [ -f "$file" ]; then
+                echo "::group::Analyzing $file"
+                if ./uft analyze "$file" > "${{ inputs.analysis-output }}/$(basename "$file" | sed 's/[^a-zA-Z0-9._-]/_/g').analysis" 2>&1; then
+                  echo "✅ Analysis successful for $file"
+                  ((files_analyzed++))
+                else
+                  echo "::warning::Analysis failed for $file"
+                  if [ "${{ inputs.fail-on-analysis-error }}" = "true" ]; then
+                    echo "::error::Analysis failed for $file and fail-on-analysis-error is enabled"
+                    exit 1
+                  fi
+                fi
+                echo "::endgroup::"
+              fi
+            done < "$file_list"
+          fi
+        }
+        
+        # Analyze specific files if provided
+        if [ -f "custom_files.txt" ]; then
+          analyze_files "custom_files.txt" "custom"
+        else
+          # Analyze by language
+          analyze_files "js_files.txt" "javascript"
+          analyze_files "py_files.txt" "python"
+          analyze_files "rs_files.txt" "rust"
+        fi
+        
+        echo "files-analyzed=$files_analyzed" >> $GITHUB_OUTPUT
+        echo "::notice::Analyzed $files_analyzed files"
+
+    - name: Generate tests
+      id: generate
+      if: inputs.generate-tests == 'true'
+      shell: bash
+      run: |
+        cd ${{ github.workspace }}
+        tests_generated=0
+        
+        # Function to generate tests
+        generate_tests_for_files() {
+          local file_list="$1"
+          local language="$2"
+          
+          if [ -f "$file_list" ] && [ -s "$file_list" ]; then
+            mkdir -p "${{ inputs.output-dir }}/$language"
+            while IFS= read -r file; do
+              if [ -f "$file" ]; then
+                echo "::group::Generating tests for $file"
+                if ./uft generate "$file" --output "${{ inputs.output-dir }}/$language/" 2>&1; then
+                  echo "✅ Test generation successful for $file"
+                  ((tests_generated++))
+                else
+                  echo "::warning::Test generation failed for $file"
+                fi
+                echo "::endgroup::"
+              fi
+            done < "$file_list"
+          fi
+        }
+        
+        # Generate tests for files
+        if [ -f "custom_files.txt" ]; then
+          generate_tests_for_files "custom_files.txt" "custom"
+        else
+          generate_tests_for_files "js_files.txt" "javascript"
+          generate_tests_for_files "py_files.txt" "python"
+          generate_tests_for_files "rs_files.txt" "rust"
+        fi
+        
+        echo "tests-generated=$tests_generated" >> $GITHUB_OUTPUT
+        echo "::notice::Generated tests for $tests_generated files"
+
+    - name: Build IDE plugins
+      if: inputs.build-plugins == 'true'
+      shell: bash
+      run: |
+        cd ${{ github.workspace }}
+        mkdir -p plugins-output
+        
+        echo "::group::Building Zed plugin"
+        if ./uft plugin zed --output plugins-output/ 2>&1; then
+          echo "✅ Zed plugin built successfully"
+        else
+          echo "::warning::Zed plugin build failed"
+        fi
+        echo "::endgroup::"
+        
+        echo "::group::Building VSCode plugin"
+        if ./uft plugin vscode --output plugins-output/ 2>&1; then
+          echo "✅ VSCode plugin built successfully"
+        else
+          echo "::warning::VSCode plugin build failed"
+        fi
+        echo "::endgroup::"
+        
+        echo "::group::Building Spring IDE plugin"
+        if ./uft plugin spring --output plugins-output/ 2>&1; then
+          echo "✅ Spring IDE plugin built successfully"
+        else
+          echo "::warning::Spring IDE plugin build failed"
+        fi
+        echo "::endgroup::"
+        
+        echo "::notice::IDE plugins built and available in plugins-output/"
+
+    - name: Upload analysis results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: uft-analysis
+        path: ${{ inputs.analysis-output }}/
+        retention-days: 7
+
+    - name: Upload generated tests
+      uses: actions/upload-artifact@v4
+      if: inputs.generate-tests == 'true' && always()
+      with:
+        name: uft-generated-tests
+        path: ${{ inputs.output-dir }}/
+        retention-days: 7
+
+    - name: Upload IDE plugins
+      uses: actions/upload-artifact@v4
+      if: inputs.build-plugins == 'true' && always()
+      with:
+        name: uft-plugins
+        path: plugins-output/
+        retention-days: 7
+
+    - name: Summary
+      if: always()
+      shell: bash
+      run: |
+        echo "## Unified Testing Framework Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Analysis" >> $GITHUB_STEP_SUMMARY
+        echo "- Files analyzed: ${{ steps.analyze.outputs.files-analyzed }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Analysis results: [View artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ inputs.generate-tests }}" = "true" ]; then
+          echo "### Test Generation" >> $GITHUB_STEP_SUMMARY
+          echo "- Tests generated: ${{ steps.generate.outputs.tests-generated }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Generated tests: [View artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        if [ "${{ inputs.build-plugins }}" = "true" ]; then
+          echo "### IDE Plugins" >> $GITHUB_STEP_SUMMARY
+          echo "- IDE plugins built and available in artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
