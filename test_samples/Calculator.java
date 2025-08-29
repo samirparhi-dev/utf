@@ -12,11 +12,9 @@ public class Calculator {
         return number % 2 == 0;
     }
     
-    public static void main(String[] args) {
-        Calculator calc = new Calculator();
-        System.out.println("Testing Java calculator");
-        System.out.println("add(5, 3) = " + calc.add(5, 3));
-        System.out.println("multiply(2.5, 4.0) = " + calc.multiply(2.5, 4.0));
-        System.out.println("isEven(6) = " + calc.isEven(6));
+    private void validateInput(int value) {
+        if (value < 0) {
+            throw new IllegalArgumentException("Value cannot be negative");
+        }
     }
 }

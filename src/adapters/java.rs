@@ -134,6 +134,9 @@ impl TestGenerator for JavaAdapter {
                 "import org.junit.*;".to_string(),
                 "import static org.junit.Assert.*;".to_string(),
             ],
+            test_type: crate::core::TestType::Unit,
+            setup_requirements: vec![],
+            cleanup_requirements: vec![],
         })
     }
 

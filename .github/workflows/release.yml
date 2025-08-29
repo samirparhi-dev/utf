@@ -1,0 +1,149 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: uft-linux-x86_64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact: uft-linux-aarch64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact: uft-macos-x86_64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: uft-macos-aarch64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: uft-windows-x86_64
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.target }}
+
+    - name: Install cross (for cross-compilation)
+      if: matrix.target == 'aarch64-unknown-linux-gnu'
+      run: cargo install cross
+
+    - name: Build
+      run: |
+        if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
+          cross build --release --target ${{ matrix.target }}
+        else
+          cargo build --release --target ${{ matrix.target }}
+        fi
+
+    - name: Package (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        cd target/${{ matrix.target }}/release
+        tar -czf ../../../${{ matrix.artifact }}.tar.gz uft
+        
+    - name: Package (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        cd target/${{ matrix.target }}/release
+        tar -czf ../../../${{ matrix.artifact }}.tar.gz uft.exe
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.artifact }}
+        path: ${{ matrix.artifact }}.tar.gz
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+        body: |
+          ## Installation
+          
+          ### One-line install (recommended):
+          ```bash
+          curl -sSfL https://install.uft.dev | sh
+          ```
+          
+          ### Manual download:
+          Download the appropriate binary for your platform below.
+          
+          ## What's Changed
+          - Automatic test generation for multiple languages
+          - Smart framework detection and selection
+          - Cross-platform compatibility
+          
+          ## Supported Languages
+          - ☕ Java (JUnit 5, TestNG)
+          - 🟨 JavaScript (Jest, Mocha)
+          - 🐍 Python (pytest, unittest)
+          - 🦀 Rust (cargo-test, nextest)
+          - 🐹 Go (testing, testify)
+          - And more...
+
+    - name: Upload Release Assets
+      run: |
+        for artifact in uft-*/*.tar.gz; do
+          asset_name=$(basename "$artifact")
+          echo "Uploading $asset_name"
+          gh release upload ${{ github.ref_name }} "$artifact" --clobber
+        done
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-installer:
+    name: Deploy Installer
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs
+        cname: install.uft.dev
+
+    - name: Deploy installer script
+      run: |
+        # Copy installer script to docs for direct access
+        cp install.sh docs/
+        
+        # Create a simple endpoint that serves the script
+        echo "#!/usr/bin/env bash" > docs/install
+        cat install.sh >> docs/install
+        chmod +x docs/install

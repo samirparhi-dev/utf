@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unified Test Framework - Install</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        .install-box {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        }
+        .copy-button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 10px;
+            transition: background 0.3s;
+        }
+        .copy-button:hover {
+            background: #218838;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .feature {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .platform {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 5px 15px;
+            border-radius: 20px;
+            margin: 5px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Unified Test Framework</h1>
+        <p style="text-align: center; font-size: 1.2em; margin-bottom: 40px;">
+            Automatically generate unit tests for multiple programming languages from Git repositories
+        </p>
+
+        <div class="install-box">
+            <h3>🔥 One-line Installation</h3>
+            <div style="display: flex; align-items: center; flex-wrap: wrap;">
+                <code id="install-command" style="flex: 1; min-width: 300px;">curl -sSfL https://install.uft.dev | sh</code>
+                <button class="copy-button" onclick="copyInstallCommand()">📋 Copy</button>
+            </div>
+        </div>
+
+        <div class="features">
+            <div class="feature">
+                <h3>🌍 Cross-Platform</h3>
+                <p>Works seamlessly across all major platforms</p>
+                <div>
+                    <span class="platform">🍎 macOS</span>
+                    <span class="platform">🐧 Linux</span>
+                    <span class="platform">🪟 Windows</span>
+                </div>
+            </div>
+            
+            <div class="feature">
+                <h3>🔧 Multi-Language</h3>
+                <p>Supports 9+ programming languages</p>
+                <div>
+                    <span class="platform">☕ Java</span>
+                    <span class="platform">🟨 JavaScript</span>
+                    <span class="platform">🐍 Python</span>
+                    <span class="platform">🦀 Rust</span>
+                    <span class="platform">🐹 Go</span>
+                </div>
+            </div>
+            
+            <div class="feature">
+                <h3>⚡ Smart Testing</h3>
+                <p>Intelligent framework detection and selection</p>
+                <div>
+                    <span class="platform">JUnit</span>
+                    <span class="platform">Jest</span>
+                    <span class="platform">pytest</span>
+                    <span class="platform">More...</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="install-box">
+            <h3>🎯 Quick Usage</h3>
+            <pre><code># Generate tests from any Git repository
+uft git-repo https://github.com/user/awesome-project.git
+
+# View supported languages and frameworks
+uft languages
+
+# Generate tests for a single file
+uft generate src/main.js</code></pre>
+        </div>
+
+        <div style="text-align: center; margin-top: 40px;">
+            <p>
+                <strong>🔗 Links:</strong>
+                <a href="https://github.com/unified-testing/unified-test-framework" style="color: #ffd700; margin: 0 10px;">GitHub</a>
+                <a href="https://docs.uft.dev" style="color: #ffd700; margin: 0 10px;">Documentation</a>
+                <a href="https://github.com/unified-testing/unified-test-framework/issues" style="color: #ffd700; margin: 0 10px;">Support</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        function copyInstallCommand() {
+            const command = document.getElementById('install-command').textContent;
+            navigator.clipboard.writeText(command).then(() => {
+                const button = document.querySelector('.copy-button');
+                const originalText = button.textContent;
+                button.textContent = '✅ Copied!';
+                button.style.background = '#28a745';
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.background = '#28a745';
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>

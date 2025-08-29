@@ -37,6 +37,12 @@ pub enum PatternType {
     FormValidation(FormField),
     ApiCall(ApiEndpoint),
     Function(FunctionPattern),
+    // Integration test patterns
+    DatabaseOperation(DatabasePattern),
+    ServiceIntegration(ServicePattern),
+    ApiIntegration(ApiIntegrationPattern),
+    ComponentIntegration(ComponentPattern),
+    WorkflowIntegration(WorkflowPattern),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,11 +75,97 @@ pub enum HttpMethod {
     Delete,
 }
 
+impl ToString for HttpMethod {
+    fn to_string(&self) -> String {
+        match self {
+            HttpMethod::Get => "GET".to_string(),
+            HttpMethod::Post => "POST".to_string(),
+            HttpMethod::Put => "PUT".to_string(),
+            HttpMethod::Delete => "DELETE".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionPattern {
     pub name: String,
     pub parameters: Vec<String>,
     pub return_type: Option<String>,
+}
+
+// Integration test pattern structures
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatabasePattern {
+    pub operation_type: DatabaseOperation,
+    pub table_name: String,
+    pub method_name: String,
+    pub has_transaction: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DatabaseOperation {
+    Create,
+    Read,
+    Update,
+    Delete,
+    Query,
+    Migration,
+}
+
+impl ToString for DatabaseOperation {
+    fn to_string(&self) -> String {
+        match self {
+            DatabaseOperation::Create => "CREATE".to_string(),
+            DatabaseOperation::Read => "READ".to_string(),
+            DatabaseOperation::Update => "UPDATE".to_string(),
+            DatabaseOperation::Delete => "DELETE".to_string(),
+            DatabaseOperation::Query => "QUERY".to_string(),
+            DatabaseOperation::Migration => "MIGRATION".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServicePattern {
+    pub service_name: String,
+    pub method_name: String,
+    pub dependencies: Vec<String>,
+    pub is_async: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiIntegrationPattern {
+    pub endpoint: String,
+    pub method: HttpMethod,
+    pub request_body: Option<String>,
+    pub response_type: Option<String>,
+    pub authentication_required: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComponentPattern {
+    pub component_name: String,
+    pub component_type: ComponentType,
+    pub dependencies: Vec<String>,
+    pub props_or_params: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ComponentType {
+    ReactComponent,
+    VueComponent,
+    AngularComponent,
+    WebComponent,
+    Class,
+    Module,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowPattern {
+    pub workflow_name: String,
+    pub steps: Vec<String>,
+    pub has_error_handling: bool,
+    pub is_async: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,6 +184,21 @@ pub struct TestSuite {
     pub framework: String,
     pub test_cases: Vec<TestCase>,
     pub imports: Vec<String>,
+    pub test_type: TestType,
+    pub setup_requirements: Vec<String>,
+    pub cleanup_requirements: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TestType {
+    Unit,
+    Integration,
+}
+
+impl Default for TestType {
+    fn default() -> Self {
+        TestType::Unit
+    }
 }
 
 #[async_trait]
@@ -100,6 +207,15 @@ pub trait TestGenerator {
     async fn generate_tests(&self, patterns: Vec<TestablePattern>) -> Result<TestSuite>;
     fn get_language(&self) -> &str;
     fn get_supported_frameworks(&self) -> Vec<&str>;
+}
+
+#[async_trait]
+pub trait IntegrationTestGenerator: TestGenerator {
+    async fn analyze_integration_patterns(&self, source: &str, file_path: &str) -> Result<Vec<TestablePattern>>;
+    async fn generate_integration_tests(&self, patterns: Vec<TestablePattern>) -> Result<TestSuite>;
+    fn get_integration_frameworks(&self) -> Vec<&str>;
+    fn get_setup_requirements(&self, patterns: &[TestablePattern]) -> Vec<String>;
+    fn get_cleanup_requirements(&self, patterns: &[TestablePattern]) -> Vec<String>;
 }
 
 pub struct TestOrchestrator {
@@ -138,7 +254,7 @@ impl TestOrchestrator {
         }
     }
 
-    fn detect_language(&self, file_path: &str) -> Result<String> {
+    pub fn detect_language(&self, file_path: &str) -> Result<String> {
         let extension = std::path::Path::new(file_path)
             .extension()
             .and_then(|s| s.to_str())

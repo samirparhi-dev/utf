@@ -122,6 +122,9 @@ impl TestGenerator for GoAdapter {
                 "\t\"testing\"".to_string(),
                 ")".to_string(),
             ],
+            test_type: crate::core::TestType::Unit,
+            setup_requirements: vec![],
+            cleanup_requirements: vec![],
         })
     }
 

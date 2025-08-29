@@ -276,6 +276,9 @@ impl TestGenerator for DynamicLanguageAdapter {
             framework: self.config.framework.clone(),
             test_cases,
             imports: self.config.imports.clone(),
+            test_type: crate::core::TestType::Unit,
+            setup_requirements: vec![],
+            cleanup_requirements: vec![],
         })
     }
 

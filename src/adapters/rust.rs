@@ -71,6 +71,9 @@ impl TestGenerator for RustAdapter {
             framework: "cargo-test".to_string(),
             test_cases,
             imports: vec![],
+            test_type: crate::core::TestType::Unit,
+            setup_requirements: vec![],
+            cleanup_requirements: vec![],
         })
     }
 

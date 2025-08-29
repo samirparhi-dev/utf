@@ -108,6 +108,9 @@ impl TestGenerator for PythonAdapter {
             framework: "pytest".to_string(),
             test_cases,
             imports: vec!["import pytest".to_string()],
+            test_type: crate::core::TestType::Unit,
+            setup_requirements: vec![],
+            cleanup_requirements: vec![],
         })
     }
 

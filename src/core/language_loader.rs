@@ -41,11 +41,33 @@ impl LanguageLoader {
     }
 
     fn load_dynamic_adapters(&mut self, adapters: &mut HashMap<String, Box<dyn TestGenerator + Send + Sync>>) -> Result<()> {
-        if !Path::new(&self.config_dir).exists() {
-            return Ok(()); // No config directory, skip dynamic loading
+        let config_paths = vec![
+            self.config_dir.clone(),
+            "./language_configs".to_string(),
+            "~/.config/uft/language_configs".to_string(),
+            "/usr/local/share/uft/language_configs".to_string(),
+        ];
+        
+        let mut config_dir_found = None;
+        for path in config_paths {
+            let expanded_path = if path.starts_with('~') {
+                path.replace("~", &std::env::var("HOME").unwrap_or_default())
+            } else {
+                path
+            };
+            
+            if Path::new(&expanded_path).exists() {
+                config_dir_found = Some(expanded_path);
+                break;
+            }
         }
+        
+        let config_dir = match config_dir_found {
+            Some(dir) => dir,
+            None => return Ok(()), // No config directory found, skip dynamic loading
+        };
 
-        let entries = fs::read_dir(&self.config_dir)?;
+        let entries = fs::read_dir(&config_dir)?;
         
         for entry in entries {
             let entry = entry?;
@@ -167,8 +189,23 @@ impl LanguageLoader {
             }
         }
         
-        languages.sort();
         languages
+    }
+    
+    pub fn list_builtin_languages(&self) -> Vec<String> {
+        vec![
+            "java".to_string(),
+            "javascript".to_string(),
+            "python".to_string(),
+            "rust".to_string(),
+            "go".to_string(),
+        ]
+    }
+    
+    pub fn list_dynamic_languages(&self) -> Vec<String> {
+        self.loaded_configs.values()
+            .map(|config| config.name.clone())
+            .collect()
     }
 }
 
