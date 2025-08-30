@@ -1,0 +1,147 @@
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
+import static org.junit.jupiter.api.Assertions.*;
+
+public class {{ function_name }}Test {
+
+    @Test
+    @DisplayName("{{ description }}")
+    void test{{ function_name }}_{{ test_category }}() {
+        // {{ description }}
+        {% for input in inputs %}
+        // Test with input: {{ input }}
+        var result = {{ function_name }}({{ input }});
+        assertNotNull(result, "Result should not be null");
+        {% endfor %}
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} with boundary conditions")
+    void test{{ function_name }}_BoundaryConditions() {
+        // Test boundary conditions
+        assertDoesNotThrow(() -> {{ function_name }}(0),
+                "Should not throw exception with zero value");
+        
+        assertDoesNotThrow(() -> {{ function_name }}(Integer.MAX_VALUE),
+                "Should not throw exception with max integer");
+        
+        assertDoesNotThrow(() -> {{ function_name }}(Integer.MIN_VALUE),
+                "Should not throw exception with min integer");
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} with null input")
+    void test{{ function_name }}_NullInput() {
+        // Test null handling
+        assertThrows(NullPointerException.class, 
+                () -> {{ function_name }}(null),
+                "Should throw NullPointerException for null input");
+    }
+
+    @ParameterizedTest
+    @DisplayName("Test {{ function_name }} with multiple inputs")
+    @ValueSource(ints = {1, 2, 3, 5, 15, Integer.MAX_VALUE})
+    void test{{ function_name }}_MultipleInputs(int input) {
+        // Parameterized test with different inputs
+        var result = {{ function_name }}(input);
+        
+        if (result != null) {
+            assertTrue(result instanceof Object, 
+                    "Result should be an instance of expected type");
+        }
+    }
+
+    @ParameterizedTest
+    @DisplayName("Test {{ function_name }} with string inputs")
+    @ValueSource(strings = {"", "test", "hello world", "special!@#$%"})
+    void test{{ function_name }}_StringInputs(String input) {
+        // Test with various string inputs
+        assertDoesNotThrow(() -> {{ function_name }}(),
+                "Should not throw exception with string input: " + input);
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} performance")
+    void test{{ function_name }}_Performance() {
+        // Basic performance test
+        long startTime = System.nanoTime();
+        
+        // Run the method multiple times
+        for (int i = 0; i < 1000; i++) {
+            {{ function_name }}();
+        }
+        
+        long duration = System.nanoTime() - startTime;
+        long maxDurationMs = 1000; // 1 second max
+        
+        assertTrue(duration < maxDurationMs * 1_000_000,
+                "Method should complete within reasonable time");
+    }
+
+    @Nested
+    @DisplayName("Edge Cases")
+    class EdgeCases {
+        
+        @Test
+        @DisplayName("Test {{ function_name }} with empty input")
+        void testEmptyInput() {
+            assertDoesNotThrow(() -> {{ function_name }}(),
+                    "Should handle empty input gracefully");
+        }
+        
+        @Test
+        @DisplayName("Test {{ function_name }} thread safety")
+        void testThreadSafety() throws InterruptedException {
+            // Simple thread safety test
+            Thread[] threads = new Thread[10];
+            boolean[] results = new boolean[threads.length];
+            
+            for (int i = 0; i < threads.length; i++) {
+                final int index = i;
+                threads[i] = new Thread(() -> {
+                    try {
+                        {{ function_name }}();
+                        results[index] = true;
+                    } catch (Exception e) {
+                        results[index] = false;
+                    }
+                });
+            }
+            
+            // Start all threads
+            for (Thread thread : threads) {
+                thread.start();
+            }
+            
+            // Wait for all threads to complete
+            for (Thread thread : threads) {
+                thread.join();
+            }
+            
+            // Verify all threads completed successfully
+            for (boolean result : results) {
+                assertTrue(result, "All threads should complete without errors");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} with exceptional conditions")
+    void test{{ function_name }}_ExceptionalConditions() {
+        // Test various exceptional conditions
+        assertDoesNotThrow(() -> {
+            var result = {{ function_name }}();
+            // Verify the result meets basic expectations
+            if (result != null) {
+                assertNotEquals("", result.toString().trim(),
+                        "Result should not be empty string");
+            }
+        }, "Method should handle normal execution without throwing exceptions");
+    }
+}

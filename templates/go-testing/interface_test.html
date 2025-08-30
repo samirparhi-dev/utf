@@ -1,0 +1,98 @@
+package main
+
+import (
+	"reflect"
+	"testing"
+)
+
+func Test{{ function_name }}_Interface(t *testing.T) {
+	// {{ description }}
+	// Test interface implementation
+	var _ {{ function_name }} = (*mockImplementation)(nil)
+	
+	tests := []struct {
+		name         string
+		implementation {{ function_name }}
+		wantErr      bool
+	}{
+		{
+			name:         "mock_implementation",
+			implementation: &mockImplementation{},
+			wantErr:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.implementation == nil && !tt.wantErr {
+				t.Errorf("Implementation should not be nil")
+			}
+			
+			// Test that implementation satisfies interface
+			interfaceType := reflect.TypeOf((*{{ function_name }})(nil)).Elem()
+			implType := reflect.TypeOf(tt.implementation)
+			
+			if !implType.Implements(interfaceType) {
+				t.Errorf("Implementation does not satisfy {{ function_name }} interface")
+			}
+		})
+	}
+}
+
+// Mock implementation for testing
+type mockImplementation struct{}
+
+{% for method in methods %}
+func (m *mockImplementation) {{ method }}() error {
+	// Mock implementation
+	return nil
+}
+{% endfor %}
+
+func Test{{ function_name }}_MethodCalls(t *testing.T) {
+	// Test interface method calls
+	mock := &mockImplementation{}
+	var iface {{ function_name }} = mock
+	
+	{% for method in methods %}
+	// Test {{ method }} method call
+	if err := iface.{{ method }}(); err != nil {
+		t.Errorf("{{ method }}() returned error: %v", err)
+	}
+	{% endfor %}
+}
+
+func Test{{ function_name }}_NilInterface(t *testing.T) {
+	// Test nil interface behavior
+	var iface {{ function_name }}
+	
+	if iface != nil {
+		t.Errorf("Uninitialized interface should be nil")
+	}
+	
+	// Test interface with nil concrete value
+	var nilImpl *mockImplementation
+	iface = nilImpl
+	
+	if iface == nil {
+		t.Errorf("Interface with nil concrete value should not be nil")
+	}
+}
+
+func Test{{ function_name }}_TypeAssertion(t *testing.T) {
+	// Test type assertions
+	mock := &mockImplementation{}
+	var iface {{ function_name }} = mock
+	
+	// Test successful type assertion
+	if _, ok := iface.(*mockImplementation); !ok {
+		t.Errorf("Type assertion to *mockImplementation should succeed")
+	}
+	
+	// Test interface conversion
+	if concrete, ok := iface.(interface{}); !ok {
+		t.Errorf("Type assertion to interface{} should succeed")
+	} else if concrete == nil {
+		t.Errorf("Concrete value should not be nil")
+	}
+}

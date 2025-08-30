@@ -1,0 +1,270 @@
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+import org.mockito.Spy;
+import org.mockito.Captor;
+import org.mockito.ArgumentCaptor;
+import org.mockito.junit.jupiter.MockitoExtension;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.*;
+
+@ExtendWith(MockitoExtension.class)
+public class {{ function_name }}MockTest {
+
+    @Mock
+    private {{ function_name }} mock{{ function_name }};
+    
+    @Spy
+    private {{ function_name }} spy{{ function_name }};
+    
+    @Captor
+    private ArgumentCaptor<Object> argumentCaptor;
+
+    private {{ function_name }} testSubject;
+
+    @BeforeEach
+    void setUp() {
+        // {{ description }}
+        MockitoAnnotations.openMocks(this);
+        testSubject = new {{ function_name }}();
+    }
+
+    @AfterEach
+    void tearDown() {
+        // Reset mocks after each test
+        reset(mock{{ function_name }}, spy{{ function_name }});
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} with mocked dependencies")
+    void test{{ function_name }}_WithMockedDependencies() {
+        // Test using mocked dependencies
+        {% for input in inputs %}
+        // Setup mock behavior for input: {{ input }}
+        when(mock{{ function_name }}.toString()).thenReturn("mocked_result_{{ input }}");
+        {% endfor %}
+        
+        // Execute test
+        assertDoesNotThrow(() -> {
+            var result = mock{{ function_name }}.toString();
+            assertNotNull(result, "Mocked method should return expected result");
+        }, "Mocked dependencies should work correctly");
+        
+        // Verify interactions
+        verify(mock{{ function_name }}, times(1)).toString();
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} method stubbing")
+    void test{{ function_name }}_MethodStubbing() {
+        // Test method stubbing with various return values
+        {% for method in methods %}
+        // Stub {{ method }} method
+        when(mock{{ function_name }}.{{ method }}()).thenReturn("stubbed_result");
+        
+        var result = mock{{ function_name }}.{{ method }}();
+        assertEquals("stubbed_result", result, "Stubbed method should return expected value");
+        
+        // Verify method was called
+        verify(mock{{ function_name }}).{{ method }}();
+        {% endfor %}
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} argument capturing")
+    void test{{ function_name }}_ArgumentCapturing() {
+        // Test argument capturing
+        doNothing().when(mock{{ function_name }}).toString();
+        
+        // Execute method calls
+        {% for input in inputs %}
+        mock{{ function_name }}.toString();
+        {% endfor %}
+        
+        // Capture and verify arguments
+        verify(mock{{ function_name }}, times(1)).toString();
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} spy behavior")
+    void test{{ function_name }}_SpyBehavior() {
+        // Test spy behavior (partial mocking)
+        spy{{ function_name }} = spy(new {{ function_name }}());
+        
+        // Call real method
+        {% for method in methods %}
+        doCallRealMethod().when(spy{{ function_name }}).{{ method }}();
+        
+        assertDoesNotThrow(() -> {
+            spy{{ function_name }}.{{ method }}();
+        }, "Spy should call real method successfully");
+        
+        verify(spy{{ function_name }}).{{ method }}();
+        {% endfor %}
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} exception mocking")
+    void test{{ function_name }}_ExceptionMocking() {
+        // Test exception mocking
+        {% for method in methods %}
+        // Setup mock to throw exception
+        when(mock{{ function_name }}.{{ method }}())
+                .thenThrow(new RuntimeException("Mocked exception for {{ method }}"));
+        
+        // Verify exception is thrown
+        assertThrows(RuntimeException.class, () -> {
+            mock{{ function_name }}.{{ method }}();
+        }, "Mock should throw configured exception");
+        
+        verify(mock{{ function_name }}).{{ method }}();
+        {% endfor %}
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} interaction verification")
+    void test{{ function_name }}_InteractionVerification() {
+        // Test interaction verification
+        {% for method in methods %}
+        // Setup expectations
+        when(mock{{ function_name }}.{{ method }}()).thenReturn("mocked");
+        
+        // Execute interactions
+        mock{{ function_name }}.{{ method }}();
+        mock{{ function_name }}.{{ method }}();
+        
+        // Verify interactions
+        verify(mock{{ function_name }}, times(2)).{{ method }}();
+        verify(mock{{ function_name }}, atLeast(1)).{{ method }}();
+        verify(mock{{ function_name }}, atMost(3)).{{ method }}();
+        {% endfor %}
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} argument matchers")
+    void test{{ function_name }}_ArgumentMatchers() {
+        // Test with argument matchers
+        when(mock{{ function_name }}.toString()).thenReturn("matched");
+        
+        // Test with different argument matchers
+        var result1 = mock{{ function_name }}.toString();
+        assertEquals("matched", result1, "Any argument should match");
+        
+        // Verify with argument matchers
+        verify(mock{{ function_name }}).toString();
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} sequential stubbing")
+    void test{{ function_name }}_SequentialStubbing() {
+        // Test sequential return values
+        {% for method in methods %}
+        when(mock{{ function_name }}.{{ method }}())
+                .thenReturn("first_call")
+                .thenReturn("second_call")
+                .thenReturn("third_call");
+        
+        // Verify sequential behavior
+        assertEquals("first_call", mock{{ function_name }}.{{ method }}());
+        assertEquals("second_call", mock{{ function_name }}.{{ method }}());
+        assertEquals("third_call", mock{{ function_name }}.{{ method }}());
+        
+        verify(mock{{ function_name }}, times(3)).{{ method }}();
+        {% endfor %}
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} void method mocking")
+    void test{{ function_name }}_VoidMethodMocking() {
+        // Test void method mocking
+        {% for method in methods %}
+        // Setup void method behavior
+        doNothing().when(mock{{ function_name }}).{{ method }}();
+        
+        // Execute void method
+        assertDoesNotThrow(() -> {
+            mock{{ function_name }}.{{ method }}();
+        }, "Void method should execute without throwing");
+        
+        // Verify void method was called
+        verify(mock{{ function_name }}).{{ method }}();
+        {% endfor %}
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} mock reset")
+    void test{{ function_name }}_MockReset() {
+        // Test mock reset functionality
+        {% for method in methods %}
+        // Setup initial behavior
+        when(mock{{ function_name }}.{{ method }}()).thenReturn("initial");
+        
+        // Use mock
+        assertEquals("initial", mock{{ function_name }}.{{ method }}());
+        
+        // Reset mock
+        reset(mock{{ function_name }});
+        
+        // Setup new behavior after reset
+        when(mock{{ function_name }}.{{ method }}()).thenReturn("after_reset");
+        
+        // Verify new behavior
+        assertEquals("after_reset", mock{{ function_name }}.{{ method }}());
+        {% endfor %}
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} verification with timeout")
+    void test{{ function_name }}_VerificationWithTimeout() {
+        // Test verification with timeout for async operations
+        {% for method in methods %}
+        // Setup async behavior
+        doAnswer(invocation -> {
+            // Simulate async delay
+            Thread.sleep(100);
+            return "async_result";
+        }).when(mock{{ function_name }}).{{ method }}();
+        
+        // Execute async call
+        new Thread(() -> mock{{ function_name }}.{{ method }}()).start();
+        
+        // Verify with timeout
+        verify(mock{{ function_name }}, timeout(1000)).{{ method }}();
+        {% endfor %}
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} never called verification")
+    void test{{ function_name }}_NeverCalledVerification() {
+        // Test verifying methods were never called
+        {% for method in methods %}
+        // Verify method was never called
+        verify(mock{{ function_name }}, never()).{{ method }}();
+        {% endfor %}
+        
+        // Verify no interactions at all
+        verifyNoInteractions(mock{{ function_name }});
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} answer callback")
+    void test{{ function_name }}_AnswerCallback() {
+        // Test custom answer callbacks
+        {% for method in methods %}
+        when(mock{{ function_name }}.{{ method }}()).thenAnswer(invocation -> {
+            // Custom logic in answer
+            Object[] args = invocation.getArguments();
+            return "custom_answer_for_{{ method }}";
+        });
+        
+        var result = mock{{ function_name }}.{{ method }}();
+        assertEquals("custom_answer_for_{{ method }}", result, 
+                "Answer callback should return custom result");
+        {% endfor %}
+    }
+}

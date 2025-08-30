@@ -1,7 +1,9 @@
 use crate::core::{TestablePattern, PatternType, TestCase, TestSuite, TestGenerator, SourceLocation, Context, FunctionPattern};
+use crate::templates::{TemplateEngine, TestTemplateData};
 use anyhow::Result;
 use async_trait::async_trait;
 use regex::Regex;
+use serde_json::Value;
 
 pub struct GoAdapter;
 
@@ -91,10 +93,27 @@ impl TestGenerator for GoAdapter {
 
     async fn generate_tests(&self, patterns: Vec<TestablePattern>) -> Result<TestSuite> {
         let mut test_cases = Vec::new();
+        let template_engine = TemplateEngine::new()?;
 
         for pattern in patterns {
             match &pattern.pattern_type {
                 PatternType::Function(func) => {
+                    // Create template data for Go function test
+                    let template_data = TestTemplateData {
+                        function_name: func.name.clone(),
+                        test_name: format!("test_{}", func.name.to_lowercase()),
+                        description: format!("Test for Go function {}", func.name),
+                        inputs: func.parameters.iter().map(|p| Value::String(p.clone())).collect(),
+                        expected_outputs: vec![Value::Null],
+                        test_category: "function".to_string(),
+                        imports: vec!["testing".to_string()],
+                        setup_code: None,
+                        teardown_code: None,
+                    };
+
+                    // Generate test body using Go function template
+                    let test_body = template_engine.render_test("go-testing/function_test", &template_data)?;
+
                     test_cases.push(TestCase {
                         id: uuid::Uuid::new_v4().to_string(),
                         name: format!("Test{}", func.name),
@@ -106,14 +125,24 @@ impl TestGenerator for GoAdapter {
                         expected_output: serde_json::json!({
                             "type": func.return_type.as_ref().unwrap_or(&"void".to_string())
                         }),
-                        test_body: "        // TODO: Implement test logic".to_string(),
-                        assertions: vec![],
+                        test_body,
+                        assertions: vec![
+                            format!("Function {} should execute without panicking", func.name),
+                            "Result should be of expected type".to_string(),
+                        ],
                         test_category: crate::core::TestCategory::HappyPath,
                     });
                 }
                 _ => {} // Skip other pattern types for now
             }
         }
+
+        // Generate comprehensive test code by combining all test cases
+        let full_test_code = if !test_cases.is_empty() {
+            Some(test_cases.iter().map(|tc| &tc.test_body).cloned().collect::<Vec<_>>().join("\n\n"))
+        } else {
+            None
+        };
 
         Ok(TestSuite {
             name: "Go Tests".to_string(),
@@ -123,13 +152,15 @@ impl TestGenerator for GoAdapter {
             imports: vec![
                 "import (".to_string(),
                 "\t\"testing\"".to_string(),
+                "\t\"reflect\"".to_string(),
+                "\t\"encoding/json\"".to_string(),
                 ")".to_string(),
             ],
             test_type: crate::core::TestType::Unit,
             setup_requirements: vec![],
             cleanup_requirements: vec![],
             coverage_target: 70.0,
-            test_code: None,
+            test_code: full_test_code,
         })
     }
 

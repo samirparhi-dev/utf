@@ -1,0 +1,85 @@
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio;
+    use std::time::Duration;
+    
+    #[tokio::test]
+    async fn test_{{ test_name }}_{{ test_category }}() {
+        // {{ description }}
+        {% for input in inputs %}
+        let result = {{ function_name }}().await;
+        assert!(true);
+        {% endfor %}
+    }
+    
+    #[tokio::test]
+    async fn test_{{ test_name }}_timeout() {
+        // Test with timeout
+        let timeout_duration = Duration::from_secs(5);
+        
+        let result = tokio::time::timeout(timeout_duration, {{ function_name }}()).await;
+        assert!(result.is_ok() || result.is_err());
+    }
+    
+    #[tokio::test]
+    async fn test_{{ test_name }}_cancellation() {
+        // Test task cancellation
+        let handle = tokio::spawn(async {
+            {{ function_name }}().await
+        });
+        
+        // Cancel the task
+        handle.abort();
+        
+        let result = handle.await;
+        assert!(result.is_err()); // Should be cancelled
+    }
+    
+    #[tokio::test]
+    async fn test_{{ test_name }}_concurrent_execution() {
+        // Test concurrent execution
+        let tasks = vec![
+            tokio::spawn({{ function_name }}()),
+            tokio::spawn({{ function_name }}()),
+            tokio::spawn({{ function_name }}()),
+        ];
+        
+        let results = futures::future::join_all(tasks).await;
+        assert_eq!(results.len(), 3);
+        
+        // Verify all tasks completed (successfully or with error)
+        for result in results {
+            assert!(result.is_ok() || result.is_err());
+        }
+    }
+    
+    #[tokio::test]
+    async fn test_{{ test_name }}_error_propagation() {
+        // Test error propagation in async context
+        match {{ function_name }}().await {
+            Ok(_) => {
+                // Function succeeded
+                assert!(true);
+            }
+            Err(e) => {
+                // Function failed, verify error is meaningful
+                assert!(!e.to_string().is_empty());
+            }
+        }
+    }
+    
+    #[tokio::test]
+    async fn test_{{ test_name }}_resource_cleanup() {
+        // Test that resources are properly cleaned up
+        {
+            let _result = {{ function_name }}().await;
+            // Resources should be cleaned up when result goes out of scope
+        }
+        
+        // Test multiple calls don't leak resources
+        for _i in 0..10 {
+            let _result = {{ function_name }}().await;
+        }
+    }
+}

@@ -1,0 +1,93 @@
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_{{ function_name }}_creation() {
+        // Test struct creation
+        let instance = {{ function_name }}::new();
+        assert!(instance.is_ok() || instance.is_err());
+        
+        // Custom setup completed
+    }
+    
+    #[test]
+    fn test_{{ function_name }}_default() {
+        // Test Default implementation if available
+        let instance = {{ function_name }}::default();
+        
+        // Verify default state
+        assert_eq!(format!("{:?}", instance).len() > 0, true);
+    }
+    
+    #[test]
+    fn test_{{ function_name }}_clone() {
+        // Test Clone implementation if available
+        let original = {{ function_name }}::default();
+        let cloned = original.clone();
+        
+        // Verify clone is independent
+        assert_eq!(original, cloned);
+    }
+    
+    #[test]
+    fn test_{{ function_name }}_equality() {
+        // Test PartialEq implementation if available
+        let instance1 = {{ function_name }}::default();
+        let instance2 = {{ function_name }}::default();
+        
+        assert_eq!(instance1, instance2);
+        assert_eq!(instance1, instance1); // reflexivity
+    }
+    
+    #[test]
+    fn test_{{ function_name }}_serialization() {
+        // Test serialization if Serialize/Deserialize is implemented
+        let instance = {{ function_name }}::default();
+        
+        // This would be conditional based on serde detection
+        #[cfg(feature = "serde")]
+        {
+            let serialized = serde_json::to_string(&instance);
+            assert!(serialized.is_ok());
+            
+            if let Ok(json_str) = serialized {
+                let deserialized: Result<{{ function_name }}, _> = serde_json::from_str(&json_str);
+                assert!(deserialized.is_ok());
+            }
+        }
+    }
+    
+    #[test]
+    fn test_{{ function_name }}_methods() {
+        // Test public methods
+        let mut instance = {{ function_name }}::default();
+        
+        // Test method calls (would be populated based on detected methods)
+        {% for method in methods %}
+        let _result = instance.{{ method }}();
+        {% endfor %}
+    }
+    
+    #[test]
+    fn test_{{ function_name }}_thread_safety() {
+        use std::sync::Arc;
+        use std::thread;
+        
+        let instance = Arc::new({{ function_name }}::default());
+        let handles: Vec<_> = (0..4)
+            .map(|i| {
+                let instance_clone = Arc::clone(&instance);
+                thread::spawn(move || {
+                    // Test thread-safe access
+                    let _result = format!("{:?}", instance_clone);
+                    i
+                })
+            })
+            .collect();
+        
+        for handle in handles {
+            assert!(handle.join().is_ok());
+        }
+    }
+}

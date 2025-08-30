@@ -1,4 +1,5 @@
 use crate::core::*;
+use crate::templates::{TemplateEngine, TestTemplateData, TestPattern};
 use anyhow::Result;
 use async_trait::async_trait;
 use regex::Regex;
@@ -8,6 +9,145 @@ pub struct PythonAdapter;
 impl PythonAdapter {
     pub fn new() -> Self {
         Self
+    }
+    
+    pub fn generate_test_with_template(&self, pattern: &TestPattern, template_engine: &TemplateEngine) -> Result<String> {
+        let template_data = match pattern {
+            TestPattern::Function { name, params, return_type } => {
+                TestTemplateData {
+                    function_name: name.clone(),
+                    test_name: format!("test_{}", name.to_lowercase()),
+                    description: format!("Test {} function", name),
+                    inputs: self.generate_inputs_for_params(params),
+                    expected_outputs: self.generate_outputs_for_return_type(return_type),
+                    test_category: self.determine_test_category(name, params),
+                    imports: vec![
+                        "import pytest".to_string(),
+                        "import unittest.mock".to_string(),
+                        "from unittest.mock import patch, MagicMock".to_string(),
+                    ],
+                    setup_code: None,
+                    teardown_code: None,
+                }
+            },
+            TestPattern::AsyncFunction { name, params, return_type } => {
+                TestTemplateData {
+                    function_name: name.clone(),
+                    test_name: format!("test_{}_async", name.to_lowercase()),
+                    description: format!("Test async {} function", name),
+                    inputs: self.generate_inputs_for_params(params),
+                    expected_outputs: self.generate_outputs_for_return_type(return_type),
+                    test_category: self.determine_test_category(name, params),
+                    imports: vec![
+                        "import pytest".to_string(),
+                        "import asyncio".to_string(),
+                        "from unittest.mock import AsyncMock, patch".to_string(),
+                    ],
+                    setup_code: None,
+                    teardown_code: None,
+                }
+            },
+            TestPattern::Class { name, methods: _methods } => {
+                TestTemplateData {
+                    function_name: name.clone(),
+                    test_name: format!("test_{}_class", name.to_lowercase()),
+                    description: format!("Test {} class", name),
+                    inputs: vec![],
+                    expected_outputs: vec![],
+                    test_category: "class".to_string(),
+                    imports: vec![
+                        "import pytest".to_string(),
+                        "from unittest.mock import Mock, patch".to_string(),
+                    ],
+                    setup_code: Some(format!("return {}()", name)),
+                    teardown_code: None,
+                }
+            },
+            TestPattern::ApiEndpoint { path, method, params } => {
+                TestTemplateData {
+                    function_name: format!("{}_{}", method.to_lowercase(), path.replace("/", "_")),
+                    test_name: format!("test_api_{}_{}", method.to_lowercase(), path.replace("/", "_")),
+                    description: format!("Test {} {} API endpoint", method, path),
+                    inputs: self.generate_inputs_for_params(params),
+                    expected_outputs: vec![serde_json::json!({"status": 200})],
+                    test_category: "api".to_string(),
+                    imports: vec![
+                        "import pytest".to_string(),
+                        "import requests".to_string(),
+                        "from unittest.mock import Mock, patch".to_string(),
+                        "import json".to_string(),
+                    ],
+                    setup_code: None,
+                    teardown_code: None,
+                }
+            },
+        };
+        
+        let template_name = match pattern {
+            TestPattern::Function { .. } => "pytest/function_test",
+            TestPattern::AsyncFunction { .. } => "pytest/async_test",
+            TestPattern::Class { .. } => "pytest/class_test",
+            TestPattern::ApiEndpoint { .. } => "pytest/api_test",
+        };
+        
+        template_engine.render_test(template_name, &template_data)
+    }
+    
+    fn generate_inputs_for_params(&self, params: &[String]) -> Vec<serde_json::Value> {
+        params.iter().enumerate().map(|(i, param)| {
+            match param.to_lowercase().as_str() {
+                p if p.contains("email") => serde_json::json!("test@example.com"),
+                p if p.contains("id") => serde_json::json!(i + 1),
+                p if p.contains("name") => serde_json::json!(format!("test_name_{}", i)),
+                p if p.contains("count") || p.contains("number") => serde_json::json!(42),
+                p if p.contains("bool") => serde_json::json!(true),
+                p if p.contains("list") || p.contains("array") => serde_json::json!([1, 2, 3]),
+                p if p.contains("dict") || p.contains("object") => serde_json::json!({"key": "value"}),
+                _ => serde_json::json!(format!("test_value_{}", i)),
+            }
+        }).collect()
+    }
+    
+    fn generate_outputs_for_return_type(&self, return_type: &Option<String>) -> Vec<serde_json::Value> {
+        match return_type {
+            Some(t) if t.contains("bool") => {
+                vec![serde_json::json!(true), serde_json::json!(false)]
+            },
+            Some(t) if t.contains("int") || t.contains("float") => {
+                vec![serde_json::json!(42)]
+            },
+            Some(t) if t.contains("str") => {
+                vec![serde_json::json!("expected_result")]
+            },
+            Some(t) if t.contains("list") || t.contains("List") => {
+                vec![serde_json::json!([1, 2, 3])]
+            },
+            Some(t) if t.contains("dict") || t.contains("Dict") => {
+                vec![serde_json::json!({"key": "value"})]
+            },
+            Some(t) if t.contains("None") => {
+                vec![serde_json::json!(null)]
+            },
+            _ => vec![serde_json::json!(null)],
+        }
+    }
+    
+    fn determine_test_category(&self, name: &str, params: &[String]) -> String {
+        let name_lower = name.to_lowercase();
+        
+        if name_lower.contains("email") || params.iter().any(|p| p.contains("email")) {
+            "email_validation".to_string()
+        } else if name_lower.contains("calculate") || name_lower.contains("compute") {
+            "numeric".to_string()
+        } else if name_lower.contains("validate") || name_lower.contains("verify") {
+            "validation".to_string()
+        } else if name_lower.contains("parse") || name_lower.contains("format") {
+            "string".to_string()
+        } else if name_lower.contains("async") || name_lower.contains("await") {
+            "async".to_string()
+        } else {
+            "general".to_string()
+        }
     }
 
     fn generate_email_validation_tests(&self, field: &FormField) -> Vec<TestCase> {

@@ -1,0 +1,214 @@
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.stream.Stream;
+
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+public class {{ function_name }}Test {
+
+    private {{ function_name }} instance;
+
+    @BeforeAll
+    void setUpBeforeClass() {
+        // Class-level setup
+    }
+
+    @AfterAll  
+    void tearDownAfterClass() {
+        // Class-level cleanup
+    }
+
+    @BeforeEach
+    void setUp() {
+        // {{ description }}
+        instance = new {{ function_name }}();
+        assertNotNull(instance, "Instance should be created successfully");
+    }
+
+    @AfterEach
+    void tearDown() {
+        // Clean up after each test
+        instance = null;
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} instantiation")
+    void test{{ function_name }}_Instantiation() {
+        // Test basic instantiation
+        {{ function_name }} newInstance = new {{ function_name }}();
+        assertNotNull(newInstance, "Should create instance successfully");
+        assertNotSame(instance, newInstance, "Each instance should be unique");
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} with constructor parameters")
+    void test{{ function_name }}_ConstructorParameters() {
+        // Test constructor with various parameters
+        {% for input in inputs %}
+        assertDoesNotThrow(() -> {
+            new {{ function_name }}({{ input }});
+        }, "Constructor should accept valid parameters");
+        {% endfor %}
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} method existence")
+    void test{{ function_name }}_MethodExistence() {
+        // Test that expected methods exist
+        Class<?> clazz = instance.getClass();
+        
+        {% for method in methods %}
+        // Test {{ method }} method existence
+        assertDoesNotThrow(() -> {
+            clazz.getDeclaredMethod("{{ method }}");
+        }, "Method {{ method }} should exist");
+        {% endfor %}
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} method calls")
+    void test{{ function_name }}_MethodCalls() {
+        // Test method invocations
+        {% for method in methods %}
+        assertDoesNotThrow(() -> {
+            // Test {{ method }} method call
+            var result = instance.{{ method }}();
+            // Basic validation that method executed
+        }, "{{ method }}() should execute without throwing exceptions");
+        {% endfor %}
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} state management")
+    void test{{ function_name }}_StateManagement() {
+        // Test object state consistency
+        assertNotNull(instance, "Instance should maintain state");
+        
+        // Test state after operations
+        {% for method in methods %}
+        instance.{{ method }}();
+        assertNotNull(instance, "Instance should remain valid after {{ method }}()");
+        {% endfor %}
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} equals and hashCode")
+    void test{{ function_name }}_EqualsAndHashCode() {
+        // Test equals and hashCode contract
+        {{ function_name }} instance1 = new {{ function_name }}();
+        {{ function_name }} instance2 = new {{ function_name }}();
+        
+        // Test reflexivity: x.equals(x) should return true
+        assertEquals(instance, instance, "Object should equal itself");
+        
+        // Test symmetry: x.equals(y) should return same as y.equals(x)  
+        boolean equals1to2 = instance1.equals(instance2);
+        boolean equals2to1 = instance2.equals(instance1);
+        assertEquals(equals1to2, equals2to1, "Equals should be symmetric");
+        
+        // Test null handling
+        assertNotEquals(instance, null, "Object should not equal null");
+        
+        // If equals, then hashCode should be equal
+        if (instance1.equals(instance2)) {
+            assertEquals(instance1.hashCode(), instance2.hashCode(),
+                    "Equal objects should have equal hash codes");
+        }
+    }
+
+    @Test
+    @DisplayName("Test {{ function_name }} toString")
+    void test{{ function_name }}_ToString() {
+        // Test toString method
+        String result = instance.toString();
+        assertNotNull(result, "toString() should not return null");
+        assertFalse(result.trim().isEmpty(), "toString() should not return empty string");
+        assertTrue(result.contains(instance.getClass().getSimpleName()),
+                "toString() should contain class name");
+    }
+
+    @Nested
+    @DisplayName("Boundary Tests")
+    class BoundaryTests {
+        
+        @Test
+        @DisplayName("Test {{ function_name }} with null constructor")
+        void testNullConstructor() {
+            assertDoesNotThrow(() -> {
+                new {{ function_name }}();
+            }, "Default constructor should handle null gracefully");
+        }
+        
+        @Test
+        @DisplayName("Test {{ function_name }} method chaining")
+        void testMethodChaining() {
+            // Test if methods can be chained (if applicable)
+            {% for method in methods %}
+            assertDoesNotThrow(() -> {
+                var result = instance.{{ method }}();
+                if (result != null && result.getClass().equals(instance.getClass())) {
+                    // Method returns instance for chaining
+                    assertSame(instance.getClass(), result.getClass());
+                }
+            }, "{{ method }}() should support method chaining if designed to");
+            {% endfor %}
+        }
+    }
+
+    @Nested
+    @DisplayName("Exception Handling")
+    class ExceptionHandling {
+        
+        @Test
+        @DisplayName("Test {{ function_name }} exception propagation")
+        void testExceptionPropagation() {
+            // Test that exceptions are properly handled or propagated
+            {% for method in methods %}
+            assertDoesNotThrow(() -> {
+                instance.{{ method }}();
+            }, "{{ method }}() should handle exceptions appropriately");
+            {% endfor %}
+        }
+        
+        @Test
+        @DisplayName("Test {{ function_name }} with invalid state")
+        void testInvalidState() {
+            // Test behavior with potentially invalid state
+            // This would be customized based on class specifics
+            assertNotNull(instance, "Instance should remain valid");
+        }
+    }
+
+    @ParameterizedTest
+    @DisplayName("Test {{ function_name }} with various inputs")
+    @MethodSource("provideTestInputs")
+    void test{{ function_name }}_ParameterizedInputs(Object input, boolean shouldSucceed) {
+        if (shouldSucceed) {
+            assertDoesNotThrow(() -> {
+                new {{ function_name }}();
+            }, "Should succeed with valid input: " + input);
+        } else {
+            // Test invalid inputs appropriately
+            assertNotNull(instance, "Instance should remain valid even with invalid inputs");
+        }
+    }
+
+    private static Stream<Arguments> provideTestInputs() {
+        return Stream.of(
+            Arguments.of("valid_input", true),
+            Arguments.of("", true),
+            Arguments.of(null, false),
+            Arguments.of(123, true),
+            Arguments.of(-1, true)
+        );
+    }
+}

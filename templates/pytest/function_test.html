@@ -1,0 +1,43 @@
+import pytest
+import unittest.mock
+from unittest.mock import patch, MagicMock
+
+class Test{{ function_name }}:
+    def test_{{ test_name }}_{{ test_category }}(self):
+        """{{ description }}"""
+        {% for input in inputs %}
+        result = {{ function_name }}({{ input }})
+        assert result is not None
+        {% endfor %}
+    
+    def test_{{ test_name }}_edge_cases(self):
+        """Test edge cases for {{ function_name }}"""
+        # Test with None
+        with pytest.raises(TypeError):
+            {{ function_name }}(None)
+        
+        # Basic edge cases
+        assert {{ function_name }}(0) is not None
+        assert {{ function_name }}('') is not None
+    
+    def test_{{ test_name }}_type_validation(self):
+        """Test type validation for {{ function_name }}"""
+        # Test with invalid types
+        invalid_inputs = [[], {}, set(), lambda x: x]
+        
+        for invalid_input in invalid_inputs:
+            with pytest.raises((TypeError, ValueError, AttributeError)):
+                {{ function_name }}(invalid_input)
+    
+    @pytest.mark.parametrize("input_val,expected", [
+        {% for input in inputs %}
+        ({{ input }}, None),
+        {% endfor %}
+    ])
+    def test_{{ test_name }}_parametrized(self, input_val, expected):
+        """Parametrized test for {{ function_name }}"""
+        result = {{ function_name }}(input_val)
+        if expected is not None:
+            assert result == expected
+        else:
+            assert result is not None

@@ -1,4 +1,5 @@
 use crate::core::*;
+use crate::templates::{TemplateEngine, TestTemplateData, TestPattern};
 use anyhow::Result;
 use async_trait::async_trait;
 use regex::Regex;
@@ -8,6 +9,151 @@ pub struct RustAdapter;
 impl RustAdapter {
     pub fn new() -> Self {
         Self
+    }
+    
+    pub fn generate_test_with_template(&self, pattern: &TestPattern, template_engine: &TemplateEngine) -> Result<String> {
+        let template_data = match pattern {
+            TestPattern::Function { name, params, return_type } => {
+                TestTemplateData {
+                    function_name: name.clone(),
+                    test_name: format!("test_{}", name.to_lowercase()),
+                    description: format!("Test {} function", name),
+                    inputs: self.generate_inputs_for_params(params),
+                    expected_outputs: self.generate_outputs_for_return_type(return_type),
+                    test_category: self.determine_test_category(name, params),
+                    imports: vec!["use super::*;".to_string()],
+                    setup_code: None,
+                    teardown_code: None,
+                }
+            },
+            TestPattern::AsyncFunction { name, params, return_type } => {
+                TestTemplateData {
+                    function_name: name.clone(),
+                    test_name: format!("test_{}_async", name.to_lowercase()),
+                    description: format!("Test async {} function", name),
+                    inputs: self.generate_inputs_for_params(params),
+                    expected_outputs: self.generate_outputs_for_return_type(return_type),
+                    test_category: self.determine_test_category(name, params),
+                    imports: vec![
+                        "use super::*;".to_string(),
+                        "use tokio;".to_string(),
+                        "use std::time::Duration;".to_string(),
+                    ],
+                    setup_code: None,
+                    teardown_code: None,
+                }
+            },
+            TestPattern::Class { name, methods: _methods } => {
+                TestTemplateData {
+                    function_name: name.clone(),
+                    test_name: format!("test_{}_struct", name.to_lowercase()),
+                    description: format!("Test {} struct", name),
+                    inputs: vec![],
+                    expected_outputs: vec![],
+                    test_category: "struct".to_string(),
+                    imports: vec!["use super::*;".to_string()],
+                    setup_code: Some(format!("let instance = {}::new();", name)),
+                    teardown_code: None,
+                }
+            },
+            TestPattern::ApiEndpoint { path, method, params } => {
+                TestTemplateData {
+                    function_name: format!("{}_{}", method.to_lowercase(), path.replace("/", "_")),
+                    test_name: format!("test_api_{}_{}", method.to_lowercase(), path.replace("/", "_")),
+                    description: format!("Test {} {} API endpoint", method, path),
+                    inputs: self.generate_inputs_for_params(params),
+                    expected_outputs: vec![serde_json::json!({"status": 200})],
+                    test_category: "api".to_string(),
+                    imports: vec![
+                        "use super::*;".to_string(),
+                        "use tokio;".to_string(),
+                        "use std::collections::HashMap;".to_string(),
+                    ],
+                    setup_code: None,
+                    teardown_code: None,
+                }
+            },
+        };
+        
+        let template_name = match pattern {
+            TestPattern::Function { .. } => "cargo/function_test",
+            TestPattern::AsyncFunction { .. } => "cargo/async_test",
+            TestPattern::Class { .. } => "cargo/struct_test",
+            TestPattern::ApiEndpoint { .. } => "cargo/function_test", // Use function template for API tests
+        };
+        
+        template_engine.render_test(template_name, &template_data)
+    }
+    
+    fn generate_inputs_for_params(&self, params: &[String]) -> Vec<serde_json::Value> {
+        params.iter().enumerate().map(|(i, param)| {
+            match param.to_lowercase().as_str() {
+                p if p.contains("string") || p.contains("str") => serde_json::json!("test_string"),
+                p if p.contains("id") => serde_json::json!(i + 1),
+                p if p.contains("name") => serde_json::json!(format!("test_name_{}", i)),
+                p if p.contains("count") || p.contains("number") || p.contains("i32") => serde_json::json!(42),
+                p if p.contains("bool") => serde_json::json!(true),
+                p if p.contains("vec") || p.contains("array") => serde_json::json!([1, 2, 3]),
+                p if p.contains("option") => serde_json::json!(null),
+                _ => {
+                    // Try to infer from Rust types
+                    if param.contains("i32") || param.contains("u32") || param.contains("usize") {
+                        serde_json::json!(42)
+                    } else if param.contains("&str") || param.contains("String") {
+                        serde_json::json!("test_value")
+                    } else if param.contains("bool") {
+                        serde_json::json!(true)
+                    } else {
+                        serde_json::json!(format!("test_value_{}", i))
+                    }
+                },
+            }
+        }).collect()
+    }
+    
+    fn generate_outputs_for_return_type(&self, return_type: &Option<String>) -> Vec<serde_json::Value> {
+        match return_type {
+            Some(t) if t.contains("bool") => {
+                vec![serde_json::json!(true), serde_json::json!(false)]
+            },
+            Some(t) if t.contains("i32") || t.contains("u32") || t.contains("usize") || t.contains("f32") || t.contains("f64") => {
+                vec![serde_json::json!(42)]
+            },
+            Some(t) if t.contains("String") || t.contains("&str") => {
+                vec![serde_json::json!("expected_result")]
+            },
+            Some(t) if t.contains("Vec") => {
+                vec![serde_json::json!([1, 2, 3])]
+            },
+            Some(t) if t.contains("Option") => {
+                vec![serde_json::json!(null), serde_json::json!("Some(value)")]
+            },
+            Some(t) if t.contains("Result") => {
+                vec![serde_json::json!("Ok(value)"), serde_json::json!("Err(error)")]
+            },
+            Some(t) if t.contains("()") => {
+                vec![serde_json::json!(null)]
+            },
+            _ => vec![serde_json::json!(0)], // Default for Rust
+        }
+    }
+    
+    fn determine_test_category(&self, name: &str, params: &[String]) -> String {
+        let name_lower = name.to_lowercase();
+        
+        if name_lower.contains("email") || params.iter().any(|p| p.contains("email")) {
+            "email_validation".to_string()
+        } else if name_lower.contains("add") || name_lower.contains("calculate") || name_lower.contains("compute") {
+            "numeric".to_string()
+        } else if name_lower.contains("validate") || name_lower.contains("verify") {
+            "validation".to_string()
+        } else if name_lower.contains("parse") || name_lower.contains("format") {
+            "string".to_string()
+        } else if name_lower.contains("async") || name_lower.contains("await") {
+            "async".to_string()
+        } else {
+            "general".to_string()
+        }
     }
 
     fn generate_function_tests(&self, func: &FunctionPattern, source: &str) -> Vec<TestCase> {

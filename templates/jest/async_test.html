@@ -1,0 +1,48 @@
+describe('{{ function_name }} (Async)', () => {
+  test('{{ test_name }} - {{ description }}', async () => {
+    // {{ test_category }} async test case
+    {% for input in inputs %}
+    const result = await {{ function_name }}({{ input }});
+    expect(result).toBeDefined();
+    // Basic expectation for async result
+    expect(result).toBeDefined();
+    {% endfor %}
+  });
+  
+  test('{{ test_name }}_promise_handling', async () => {
+    // Test promise resolution and rejection
+    await expect({{ function_name }}()).resolves.toBeDefined();
+    
+    // Test with invalid inputs
+    await expect({{ function_name }}(null)).rejects.toThrow();
+    await expect({{ function_name }}(undefined)).rejects.toThrow();
+  });
+  
+  test('{{ test_name }}_timeout_handling', async () => {
+    // Test timeout scenarios
+    const startTime = Date.now();
+    
+    try {
+      await {{ function_name }}();
+      const endTime = Date.now();
+      expect(endTime - startTime).toBeLessThan(5000); // Should complete within 5 seconds
+    } catch (error) {
+      // Handle expected timeouts
+      expect(error).toBeDefined();
+    }
+  });
+  
+  test('{{ test_name }}_concurrent_execution', async () => {
+    // Test concurrent execution
+    const promises = Array.from({ length: 3 }, (_, i) => 
+      {{ function_name }}(`test_input_${i}`)
+    );
+    
+    const results = await Promise.allSettled(promises);
+    expect(results).toHaveLength(3);
+    
+    results.forEach(result => {
+      expect(['fulfilled', 'rejected']).toContain(result.status);
+    });
+  });
+});

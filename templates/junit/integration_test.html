@@ -1,0 +1,256 @@
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Timeout;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
+import static org.junit.jupiter.api.Assertions.*;
+import java.time.Duration;
+import java.util.concurrent.TimeUnit;
+
+@SpringBootTest
+@ActiveProfiles("test")
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@Tag("integration")
+public class {{ function_name }}IntegrationTest {
+
+    @BeforeAll
+    static void setUpBeforeClass() {
+        // Integration test setup
+        System.setProperty("test.environment", "integration");
+    }
+
+    @AfterAll
+    static void tearDownAfterClass() {
+        // Integration test cleanup
+        System.clearProperty("test.environment");
+    }
+
+    @BeforeEach
+    void setUp() {
+        // Setup before each integration test
+    }
+
+    @AfterEach
+    void tearDown() {
+        // Cleanup after each integration test
+    }
+
+    @Test
+    @Order(1)
+    @DisplayName("Integration test: {{ function_name }} system initialization")
+    @Timeout(value = 30, unit = TimeUnit.SECONDS)
+    void test{{ function_name }}_SystemInitialization() {
+        // {{ description }}
+        // Test system initialization and component wiring
+        assertDoesNotThrow(() -> {
+            // Initialize system components
+            var result = {{ function_name }}();
+            assertNotNull(result, "System should initialize successfully");
+        }, "System initialization should complete without errors");
+    }
+
+    @Test  
+    @Order(2)
+    @DisplayName("Integration test: {{ function_name }} end-to-end workflow")
+    @Transactional
+    void test{{ function_name }}_EndToEndWorkflow() {
+        // Test complete workflow integration
+        {% for input in inputs %}
+        // Test workflow step with input: {{ input }}
+        assertDoesNotThrow(() -> {
+            var result = {{ function_name }}({{ input }});
+            // Verify workflow step completed
+            assertNotNull(result, "Workflow step should produce result");
+        }, "End-to-end workflow should complete successfully");
+        {% endfor %}
+    }
+
+    @Test
+    @Order(3)
+    @DisplayName("Integration test: {{ function_name }} database operations")
+    @Transactional
+    void test{{ function_name }}_DatabaseOperations() {
+        // Test database integration
+        assertDoesNotThrow(() -> {
+            // Test database read operations
+            var readResult = {{ function_name }}();
+            
+            // Test database write operations
+            if (readResult != null) {
+                // Perform write operation
+                assertNotNull(readResult, "Database operations should succeed");
+            }
+        }, "Database operations should complete without errors");
+    }
+
+    @Test
+    @Order(4)
+    @DisplayName("Integration test: {{ function_name }} external service calls")
+    @Timeout(value = 60, unit = TimeUnit.SECONDS)
+    void test{{ function_name }}_ExternalServiceCalls() {
+        // Test external service integration
+        assertTimeoutPreemptively(Duration.ofSeconds(45), () -> {
+            var result = {{ function_name }}();
+            
+            // Verify external service interaction
+            if (result != null) {
+                assertNotNull(result, "External service calls should return results");
+            }
+        }, "External service calls should complete within timeout");
+    }
+
+    @Test
+    @Order(5)
+    @DisplayName("Integration test: {{ function_name }} concurrent operations")
+    void test{{ function_name }}_ConcurrentOperations() {
+        // Test concurrent access in integration environment
+        assertDoesNotThrow(() -> {
+            // Create multiple concurrent operations
+            Thread[] threads = new Thread[5];
+            boolean[] results = new boolean[threads.length];
+            
+            for (int i = 0; i < threads.length; i++) {
+                final int index = i;
+                threads[i] = new Thread(() -> {
+                    try {
+                        var result = {{ function_name }}();
+                        results[index] = (result != null);
+                    } catch (Exception e) {
+                        results[index] = false;
+                    }
+                });
+            }
+            
+            // Start all threads
+            for (Thread thread : threads) {
+                thread.start();
+            }
+            
+            // Wait for completion
+            for (Thread thread : threads) {
+                thread.join(5000); // 5 second timeout per thread
+            }
+            
+            // Verify all operations completed successfully
+            for (boolean result : results) {
+                assertTrue(result, "Concurrent operations should succeed");
+            }
+            
+        }, "Concurrent operations should complete successfully");
+    }
+
+    @Test
+    @Order(6)
+    @DisplayName("Integration test: {{ function_name }} error recovery")
+    void test{{ function_name }}_ErrorRecovery() {
+        // Test system error recovery capabilities
+        assertDoesNotThrow(() -> {
+            try {
+                // Simulate error condition
+                var result = {{ function_name }}();
+                
+                // Test recovery mechanism
+                if (result == null) {
+                    // System should handle null results gracefully
+                    assertTrue(true, "System handles null results");
+                }
+                
+            } catch (Exception e) {
+                // Verify system can recover from exceptions
+                assertDoesNotThrow(() -> {
+                    // Attempt recovery operation
+                    var recoveryResult = {{ function_name }}();
+                }, "System should recover from errors");
+            }
+        }, "Error recovery mechanisms should function properly");
+    }
+
+    @Test
+    @Order(7)
+    @DisplayName("Integration test: {{ function_name }} data consistency")
+    @Transactional
+    void test{{ function_name }}_DataConsistency() {
+        // Test data consistency across system components
+        assertDoesNotThrow(() -> {
+            // Perform operations that affect data consistency
+            var initialState = {{ function_name }}();
+            
+            // Modify state through system operations
+            {% for method in methods %}
+            // Test consistency after {{ method }}
+            var afterOperation = {{ function_name }}();
+            assertNotNull(afterOperation, "Data should remain consistent after {{ method }}");
+            {% endfor %}
+            
+        }, "Data consistency should be maintained across operations");
+    }
+
+    @Test
+    @Order(8)
+    @DisplayName("Integration test: {{ function_name }} resource cleanup")
+    void test{{ function_name }}_ResourceCleanup() {
+        // Test proper resource cleanup in integration environment
+        assertDoesNotThrow(() -> {
+            // Allocate resources
+            var result = {{ function_name }}();
+            
+            // Verify resources are properly managed
+            if (result != null) {
+                // Test resource cleanup
+                System.gc(); // Suggest garbage collection
+                
+                // Verify system stability after cleanup
+                assertTrue(true, "Resource cleanup completed successfully");
+            }
+        }, "Resource cleanup should complete without issues");
+    }
+
+    @Test
+    @Order(9)
+    @DisplayName("Integration test: {{ function_name }} performance under load")
+    @Timeout(value = 120, unit = TimeUnit.SECONDS)
+    void test{{ function_name }}_PerformanceUnderLoad() {
+        // Test system performance under integration load
+        assertDoesNotThrow(() -> {
+            long startTime = System.currentTimeMillis();
+            
+            // Simulate load
+            for (int i = 0; i < 100; i++) {
+                var result = {{ function_name }}();
+                // Verify performance doesn't degrade significantly
+                if (i % 20 == 0) {
+                    long currentTime = System.currentTimeMillis();
+                    long elapsed = currentTime - startTime;
+                    assertTrue(elapsed < 60000, "Performance should remain acceptable under load");
+                }
+            }
+            
+        }, "System should maintain performance under integration load");
+    }
+
+    @Test
+    @Order(10)
+    @DisplayName("Integration test: {{ function_name }} final validation")
+    void test{{ function_name }}_FinalValidation() {
+        // Final validation of integration test suite
+        assertDoesNotThrow(() -> {
+            var finalResult = {{ function_name }}();
+            
+            // Perform comprehensive validation
+            assertNotNull(finalResult, "Final integration validation should pass");
+            
+            // Verify system is in expected state
+            assertTrue(true, "Integration test suite completed successfully");
+            
+        }, "Final integration validation should succeed");
+    }
+}

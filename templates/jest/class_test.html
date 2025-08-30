@@ -1,0 +1,45 @@
+describe('{{ function_name }} Class', () => {
+  let instance;
+  
+  beforeEach(() => {
+    instance = new {{ function_name }}();
+  });
+  
+  afterEach(() => {
+    // Cleanup if needed
+  });
+  
+  test('should create instance successfully', () => {
+    expect(instance).toBeInstanceOf({{ function_name }});
+    expect(instance).toBeDefined();
+  });
+  
+  test('should have required methods', () => {
+    // Check if class has expected methods
+    expect(typeof instance.constructor).toBe('function');
+    
+    // Test method existence (dynamic based on detected methods)
+    {% for method in methods %}
+    expect(typeof instance.{{ method }}).toBe('function');
+    {% endfor %}
+  });
+  
+  test('should handle initialization parameters', () => {
+    // Test constructor with various parameters
+    {% for input in inputs %}
+    const testInstance = new {{ function_name }}({{ input }});
+    expect(testInstance).toBeInstanceOf({{ function_name }});
+    {% endfor %}
+  });
+  
+  test('should maintain state correctly', () => {
+    // Test state management
+    const initialState = JSON.stringify(instance);
+    
+    // Perform some operations
+    // Add operations based on detected methods
+    
+    // Verify state consistency
+    expect(instance).toBeDefined();
+  });
+});

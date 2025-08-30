@@ -1,0 +1,26 @@
+describe('{{ function_name }}', () => {
+  test('{{ test_name }} - {{ description }}', () => {
+    // {{ test_category }} test case
+    {% for input in inputs %}
+    expect({{ function_name }}({{ input }})).toBeDefined();
+    {% endfor %}
+    
+    // Edge cases
+    expect(() => {{ function_name }}()).toThrow();
+    expect({{ function_name }}(null)).toBe(null);
+    expect({{ function_name }}(undefined)).toBe(undefined);
+  });
+  
+  test('{{ test_name }}_boundary_conditions', () => {
+    // Test boundary conditions
+    expect({{ function_name }}(0)).toBeDefined();
+    expect({{ function_name }}('')).toBeDefined();
+  });
+  
+  test('{{ test_name }}_type_validation', () => {
+    // Type validation tests
+    expect(() => {{ function_name }}(123, 'string')).not.toThrow();
+    expect(() => {{ function_name }}('string', 123)).not.toThrow();
+    expect(() => {{ function_name }}([], {})).not.toThrow();
+  });
+});

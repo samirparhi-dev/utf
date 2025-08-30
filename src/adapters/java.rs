@@ -1,7 +1,9 @@
 use crate::core::{TestablePattern, PatternType, TestCase, TestSuite, TestGenerator, SourceLocation, Context, FunctionPattern};
+use crate::templates::{TemplateEngine, TestTemplateData};
 use anyhow::Result;
 use async_trait::async_trait;
 use regex::Regex;
+use serde_json::Value;
 
 pub struct JavaAdapter;
 
@@ -99,15 +101,44 @@ impl TestGenerator for JavaAdapter {
 
     async fn generate_tests(&self, patterns: Vec<TestablePattern>) -> Result<TestSuite> {
         let mut test_cases = Vec::new();
+        let template_engine = TemplateEngine::new()?;
 
         let class_name = patterns.iter()
             .find_map(|p| p.context.class_name.as_ref())
             .unwrap_or(&"TestClass".to_string())
             .clone();
 
+        // Collect all method names for class-level template data
+        let method_names: Vec<String> = patterns.iter()
+            .filter_map(|p| match &p.pattern_type {
+                PatternType::Function(func) => Some(func.name.clone()),
+                _ => None,
+            })
+            .collect();
+
         for pattern in &patterns {
             match &pattern.pattern_type {
                 PatternType::Function(func) => {
+                    // Create template data for Java method test
+                    let template_data = TestTemplateData {
+                        function_name: func.name.clone(),
+                        test_name: format!("test_{}", func.name),
+                        description: format!("Test for Java method {}", func.name),
+                        inputs: func.parameters.iter().map(|p| Value::String(p.clone())).collect(),
+                        expected_outputs: vec![Value::Null],
+                        test_category: "method".to_string(),
+                        imports: vec![
+                            "org.junit.jupiter.api.Test".to_string(),
+                            "org.junit.jupiter.api.BeforeEach".to_string(),
+                            "static org.junit.jupiter.api.Assertions.*".to_string(),
+                        ],
+                        setup_code: None,
+                        teardown_code: None,
+                    };
+
+                    // Generate test body using Java method template
+                    let test_body = template_engine.render_test("junit/method_test", &template_data)?;
+
                     test_cases.push(TestCase {
                         id: uuid::Uuid::new_v4().to_string(),
                         name: format!("test{}", func.name),
@@ -119,8 +150,12 @@ impl TestGenerator for JavaAdapter {
                         expected_output: serde_json::json!({
                             "type": func.return_type.as_ref().unwrap_or(&"void".to_string())
                         }),
-                        test_body: "        // TODO: Implement test logic".to_string(),
-                        assertions: vec![],
+                        test_body,
+                        assertions: vec![
+                            format!("Method {} should execute successfully", func.name),
+                            "Method should return expected type".to_string(),
+                            "Method should handle edge cases properly".to_string(),
+                        ],
                         test_category: crate::core::TestCategory::HappyPath,
                     });
                 }
@@ -128,20 +163,29 @@ impl TestGenerator for JavaAdapter {
             }
         }
 
+        // Generate comprehensive test code by combining all test cases
+        let full_test_code = if !test_cases.is_empty() {
+            Some(test_cases.iter().map(|tc| &tc.test_body).cloned().collect::<Vec<_>>().join("\n\n"))
+        } else {
+            None
+        };
+
         Ok(TestSuite {
             name: format!("{}Test", class_name),
             language: "java".to_string(),
             framework: "junit".to_string(),
             test_cases,
             imports: vec![
-                "import org.junit.*;".to_string(),
-                "import static org.junit.Assert.*;".to_string(),
+                "import org.junit.jupiter.api.*;".to_string(),
+                "import org.junit.jupiter.params.ParameterizedTest;".to_string(),
+                "import org.junit.jupiter.params.provider.*;".to_string(),
+                "import static org.junit.jupiter.api.Assertions.*;".to_string(),
             ],
             test_type: crate::core::TestType::Unit,
             setup_requirements: vec![],
             cleanup_requirements: vec![],
             coverage_target: 80.0,
-            test_code: None,
+            test_code: full_test_code,
         })
     }
 
@@ -161,8 +205,21 @@ impl TestGenerator for JavaAdapter {
         80.0
     }
 
-    fn generate_test_code(&self, _test_suite: &TestSuite) -> Result<String> {
-        Ok("// Java tests - TODO: implement code generation".to_string())
+    fn generate_test_code(&self, test_suite: &TestSuite) -> Result<String> {
+        // Return the comprehensive test code generated by templates
+        match &test_suite.test_code {
+            Some(code) => Ok(code.clone()),
+            None => {
+                // Fallback: combine individual test bodies
+                let combined_tests = test_suite.test_cases
+                    .iter()
+                    .map(|tc| &tc.test_body)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join("\n\n");
+                Ok(combined_tests)
+            }
+        }
     }
 }
 

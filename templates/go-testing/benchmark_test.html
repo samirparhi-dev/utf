@@ -1,0 +1,133 @@
+package main
+
+import (
+	"testing"
+	"runtime"
+	"time"
+)
+
+func Benchmark{{ function_name }}(b *testing.B) {
+	// {{ description }}
+	// Run the function b.N times
+	for i := 0; i < b.N; i++ {
+		result := {{ function_name }}()
+		_ = result // Prevent compiler optimization
+	}
+}
+
+func Benchmark{{ function_name }}_WithInput(b *testing.B) {
+	// Benchmark with different input sizes
+	inputs := []struct {
+		name  string
+		value interface{}
+	}{
+		{"small", "small_input"},
+		{"medium", "medium_input_with_more_data"},
+		{"large", "large_input_with_much_more_data_to_process"},
+	}
+
+	for _, input := range inputs {
+		b.Run(input.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				result := {{ function_name }}()
+				_ = result
+			}
+		})
+	}
+}
+
+func Benchmark{{ function_name }}_Parallel(b *testing.B) {
+	// Benchmark parallel execution
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			result := {{ function_name }}()
+			_ = result
+		}
+	})
+}
+
+func Benchmark{{ function_name }}_Memory(b *testing.B) {
+	// Benchmark memory allocations
+	b.ReportAllocs()
+	
+	for i := 0; i < b.N; i++ {
+		result := {{ function_name }}()
+		_ = result
+	}
+}
+
+func Benchmark{{ function_name }}_WithSetup(b *testing.B) {
+	// Benchmark with setup and teardown
+	setup := func() interface{} {
+		// Setup code that doesn't count towards benchmark time
+		return "setup_data"
+	}
+	
+	teardown := func(data interface{}) {
+		// Teardown code that doesn't count towards benchmark time
+		_ = data
+	}
+	
+	b.ResetTimer() // Reset timer after setup
+	
+	for i := 0; i < b.N; i++ {
+		data := setup()
+		b.StartTimer()
+		
+		result := {{ function_name }}()
+		_ = result
+		
+		b.StopTimer()
+		teardown(data)
+	}
+}
+
+func Benchmark{{ function_name }}_CPUIntensive(b *testing.B) {
+	// Benchmark CPU-intensive operations
+	runtime.GC() // Force garbage collection before benchmark
+	
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		start := time.Now()
+		result := {{ function_name }}()
+		elapsed := time.Since(start)
+		
+		_ = result
+		_ = elapsed
+	}
+}
+
+func Benchmark{{ function_name }}_Concurrency(b *testing.B) {
+	// Test different levels of concurrency
+	concurrencyLevels := []int{1, 2, 4, 8, 16}
+	
+	for _, level := range concurrencyLevels {
+		b.Run("concurrency-test", func(b *testing.B) {
+			b.SetParallelism(level)
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					result := {{ function_name }}()
+					_ = result
+				}
+			})
+		})
+	}
+}
+
+// Example benchmark helper functions
+func BenchmarkHelper_CompareImplementations(b *testing.B) {
+	// Compare different implementations
+	implementations := map[string]func(){
+		"current": {{ function_name }},
+		// Add alternative implementations here
+	}
+	
+	for name, impl := range implementations {
+		b.Run(name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				result := impl()
+				_ = result
+			}
+		})
+	}
+}

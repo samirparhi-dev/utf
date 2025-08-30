@@ -1,0 +1,105 @@
+package main
+
+import (
+	"encoding/json"
+	"reflect"
+	"testing"
+)
+
+func Test{{ function_name }}_Creation(t *testing.T) {
+	// {{ description }}
+	tests := []struct {
+		name    string
+		wantErr bool
+	}{
+		{
+			name:    "valid_creation",
+			wantErr: false,
+		},
+		{
+			name:    "default_values",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			instance := &{{ function_name }}{}
+			if instance == nil && !tt.wantErr {
+				t.Errorf("Failed to create {{ function_name }} instance")
+			}
+		})
+	}
+}
+
+func Test{{ function_name }}_Methods(t *testing.T) {
+	// Test struct methods
+	instance := &{{ function_name }}{}
+	
+	// Test method existence using reflection
+	v := reflect.ValueOf(instance)
+	typ := v.Type()
+	
+	{% for method in methods %}
+	// Test {{ method }} method
+	method{{ loop.index }} := v.MethodByName("{{ method }}")
+	if !method{{ loop.index }}.IsValid() {
+		t.Errorf("Method {{ method }} not found on {{ function_name }}")
+	}
+	{% endfor %}
+	
+	// Test that struct implements expected interfaces
+	if typ.Kind() != reflect.Ptr || typ.Elem().Kind() != reflect.Struct {
+		t.Errorf("{{ function_name }} is not a struct pointer")
+	}
+}
+
+func Test{{ function_name }}_Serialization(t *testing.T) {
+	// Test JSON serialization/deserialization
+	original := &{{ function_name }}{}
+	
+	// Marshal to JSON
+	jsonData, err := json.Marshal(original)
+	if err != nil {
+		t.Errorf("Failed to marshal {{ function_name }} to JSON: %v", err)
+		return
+	}
+	
+	// Unmarshal from JSON
+	var deserialized {{ function_name }}
+	err = json.Unmarshal(jsonData, &deserialized)
+	if err != nil {
+		t.Errorf("Failed to unmarshal {{ function_name }} from JSON: %v", err)
+		return
+	}
+	
+	// Compare using reflection (since we don't know the struct fields)
+	if !reflect.DeepEqual(*original, deserialized) {
+		t.Errorf("Serialization/deserialization changed struct values")
+	}
+}
+
+func Test{{ function_name }}_Equality(t *testing.T) {
+	// Test struct equality
+	instance1 := &{{ function_name }}{}
+	instance2 := &{{ function_name }}{}
+	
+	if !reflect.DeepEqual(*instance1, *instance2) {
+		t.Errorf("Two default instances of {{ function_name }} should be equal")
+	}
+	
+	// Test pointer inequality
+	if instance1 == instance2 {
+		t.Errorf("Two different instances should have different pointers")
+	}
+}
+
+func Test{{ function_name }}_ZeroValue(t *testing.T) {
+	// Test zero value behavior
+	var zero {{ function_name }}
+	instance := {{ function_name }}{}
+	
+	if !reflect.DeepEqual(zero, instance) {
+		t.Errorf("Zero value and empty instance should be equal")
+	}
+}

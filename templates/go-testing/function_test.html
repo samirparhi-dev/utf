@@ -1,0 +1,80 @@
+package main
+
+import (
+	"testing"
+)
+
+func Test{{ function_name }}(t *testing.T) {
+	// {{ description }}
+	tests := []struct {
+		name     string
+		expected interface{}
+		wantErr  bool
+	}{
+		{
+			name:     "{{ test_name }}_valid_input",
+			expected: nil,
+			wantErr:  false,
+		},
+		{
+			name:     "{{ test_name }}_edge_case",
+			expected: nil,
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := {{ function_name }}()
+			
+			if tt.wantErr {
+				if result == nil {
+					t.Errorf("{{ function_name }}() expected error but got none")
+				}
+			} else {
+				if result != tt.expected && tt.expected != nil {
+					t.Errorf("{{ function_name }}() = %v, want %v", result, tt.expected)
+				}
+			}
+		})
+	}
+}
+
+func Test{{ function_name }}_Boundary(t *testing.T) {
+	// Test boundary conditions
+	testCases := []struct {
+		name string
+		input interface{}
+	}{
+		{"zero_value", 0},
+		{"empty_string", ""},
+		{"nil_input", nil},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := {{ function_name }}()
+			if result == nil && tc.input != nil {
+				t.Errorf("Expected non-nil result for %s", tc.name)
+			}
+		})
+	}
+}
+
+func Test{{ function_name }}_Concurrent(t *testing.T) {
+	// Test concurrent access
+	done := make(chan bool, 10)
+	
+	for i := 0; i < 10; i++ {
+		go func() {
+			defer func() { done <- true }()
+			result := {{ function_name }}()
+			_ = result // Use result to avoid unused variable warning
+		}()
+	}
+	
+	// Wait for all goroutines to complete
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+}
