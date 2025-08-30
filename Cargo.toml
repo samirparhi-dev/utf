@@ -14,11 +14,12 @@ async-trait = "0.1"
 clap = { version = "4.0", features = ["derive"] }
 git2 = "0.18"
 walkdir = "2.0"
+tera = "1.20"
 
 [dev-dependencies]
 tempfile = "3.0"
 
 [[bin]]
-name = "uft"
+name = "utf"
 path = "src/bin/unified-testing.rs"
 

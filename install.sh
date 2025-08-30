@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Unified Test Framework Installation Script
-# Usage: curl -sSfL https://install.uft.dev | sh
+# UTF - Unified Test Framework Installation Script
+# Usage: curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/install.sh | bash
 
 set -e
 
@@ -23,10 +23,11 @@ DOWNLOAD="📥"
 CONFIG="⚙️"
 
 # Default values
-UFT_INSTALL_DIR="${UFT_INSTALL_DIR:-$HOME/.local/bin}"
-UFT_CONFIG_DIR="$HOME/.config/uft"
-UFT_VERSION="${UFT_VERSION:-latest}"
-UFT_REPO="unified-testing/unified-test-framework"
+UTF_INSTALL_DIR="${UTF_INSTALL_DIR:-$HOME/.local/bin}"
+UTF_CONFIG_DIR="$HOME/.config/utf"
+UTF_VERSION="${UTF_VERSION:-latest}"
+UTF_REPO="samirparhi-dev/unified-test-framework"
+BINARY_NAME="utf"
 GITHUB_API_BASE="https://api.github.com/repos"
 GITHUB_RELEASE_BASE="https://github.com"
 
@@ -102,18 +103,18 @@ download_with_retry() {
 
 # Get latest release version
 get_latest_version() {
-    if [ "$UFT_VERSION" = "latest" ]; then
-        local api_url="${GITHUB_API_BASE}/${UFT_REPO}/releases/latest"
+    if [ "$UTF_VERSION" = "latest" ]; then
+        local api_url="${GITHUB_API_BASE}/${UTF_REPO}/releases/latest"
         
         if command -v curl >/dev/null 2>&1; then
             curl -sSfL "$api_url" | grep '"tag_name":' | sed -E 's/.*"v?([^"]+)".*/\1/' | head -n1
         elif command -v wget >/dev/null 2>&1; then
             wget -qO- "$api_url" | grep '"tag_name":' | sed -E 's/.*"v?([^"]+)".*/\1/' | head -n1
         else
-            echo "v1.0.0"  # fallback version
+            echo "0.1.0"  # fallback version
         fi
     else
-        echo "$UFT_VERSION"
+        echo "$UTF_VERSION"
     fi
 }
 
@@ -150,7 +151,7 @@ build_from_source() {
     
     # Clone repository
     if command -v git >/dev/null 2>&1; then
-        git clone "https://github.com/${UFT_REPO}.git" .
+        git clone "https://github.com/${UTF_REPO}.git" .
     else
         echo "${ERROR} git is required to build from source"
         exit 1
@@ -170,14 +171,14 @@ build_from_source() {
 install_language_configs() {
     echo "${CONFIG} Installing language configurations..."
     
-    mkdir -p "$UFT_CONFIG_DIR/language_configs"
+    mkdir -p "$UTF_CONFIG_DIR/language_configs"
     
     # Download language configs
     local configs=("swift.json" "kotlin.json" "csharp.json" "php.json")
     
     for config in "${configs[@]}"; do
-        local config_url="https://raw.githubusercontent.com/${UFT_REPO}/main/language_configs/${config}"
-        download_with_retry "$config_url" "$UFT_CONFIG_DIR/language_configs/$config"
+        local config_url="https://raw.githubusercontent.com/${UTF_REPO}/main/language_configs/${config}"
+        download_with_retry "$config_url" "$UTF_CONFIG_DIR/language_configs/$config" || echo "${WARNING} Failed to download $config (optional)"
     done
     
     echo "${CHECK} Language configurations installed"
@@ -225,11 +226,11 @@ main() {
     echo ""
     
     # Check if already installed
-    if command -v uft >/dev/null 2>&1; then
-        echo "${CHECK} uft is already installed at $(which uft)"
-        echo "${INFO} To reinstall, run: ${YELLOW}UFT_FORCE=1 curl -sSfL https://install.uft.dev | sh${NC}"
+    if command -v utf >/dev/null 2>&1; then
+        echo "${CHECK} utf is already installed at $(which utf)"
+        echo "${INFO} To reinstall, run: ${YELLOW}UTF_FORCE=1 curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/install.sh | bash${NC}"
         
-        if [ "${UFT_FORCE:-}" != "1" ]; then
+        if [ "${UTF_FORCE:-}" != "1" ]; then
             exit 0
         fi
         echo "${WARNING} Force reinstalling..."
@@ -251,23 +252,23 @@ main() {
     echo ""
     
     # Create installation directory
-    mkdir -p "$UFT_INSTALL_DIR"
+    mkdir -p "$UTF_INSTALL_DIR"
     
     # Try to download prebuilt binary first
     echo "${DOWNLOAD} Attempting to download prebuilt binary..."
-    local binary_name="uft"
+    local binary_name="utf"
     if [[ "$platform" == *"windows"* ]]; then
-        binary_name="uft.exe"
+        binary_name="utf.exe"
     fi
     
-    local download_url="${GITHUB_RELEASE_BASE}/${UFT_REPO}/releases/download/v${version}/uft-${version}-${platform}.tar.gz"
-    local temp_file="/tmp/uft-${version}-${platform}.tar.gz"
+    local download_url="${GITHUB_RELEASE_BASE}/${UTF_REPO}/releases/download/v${version}/utf-${version}-${platform}.tar.gz"
+    local temp_file="/tmp/utf-${version}-${platform}.tar.gz"
     
     if download_with_retry "$download_url" "$temp_file" 2>/dev/null; then
         echo "${CHECK} Downloaded prebuilt binary"
         
         # Extract binary
-        cd "$UFT_INSTALL_DIR"
+        cd "$UTF_INSTALL_DIR"
         if command -v tar >/dev/null 2>&1; then
             tar -xzf "$temp_file" "$binary_name"
             chmod +x "$binary_name"
@@ -295,21 +296,26 @@ main() {
     echo ""
     
     # Verify installation
-    if [ -x "$UFT_INSTALL_DIR/uft" ] || [ -x "$UFT_INSTALL_DIR/uft.exe" ]; then
+    if [ -x "$UTF_INSTALL_DIR/utf" ] || [ -x "$UTF_INSTALL_DIR/utf.exe" ]; then
         echo "${CHECK} ${GREEN}Installation completed successfully!${NC}"
         echo ""
         echo "${INFO} ${CYAN}What was installed:${NC}"
-        echo "  • Binary: $UFT_INSTALL_DIR/$binary_name"
-        echo "  • Language configs: $UFT_CONFIG_DIR/language_configs/"
+        echo "  • Binary: $UTF_INSTALL_DIR/$binary_name"
+        echo "  • Language configs: $UTF_CONFIG_DIR/language_configs/"
         echo "  • Shell integration: configured"
         echo ""
         echo "${ROCKET} ${YELLOW}Next steps:${NC}"
         echo "  1. Restart your terminal or run: ${CYAN}source ~/.bashrc${NC} (or ~/.zshrc)"
-        echo "  2. Test with: ${CYAN}uft --help${NC}"
-        echo "  3. View languages: ${CYAN}uft languages${NC}"
+        echo "  2. Test with: ${CYAN}utf --help${NC}"
+        echo "  3. View languages: ${CYAN}utf languages${NC}"
         echo ""
         echo "${INFO} ${PURPLE}Generate tests from any Git repository:${NC}"
-        echo "  ${CYAN}uft git-repo https://github.com/user/repo.git${NC}"
+        echo "  ${CYAN}utf git-repo https://github.com/user/repo.git${NC}"
+        echo ""
+        echo "${INFO} ${PURPLE}Generate tests with comprehensive coverage:${NC}"
+        echo "  ${CYAN}utf generate examples/sample.py${NC}  # 85% coverage target"
+        echo "  ${CYAN}utf generate examples/sample.js${NC}  # 80% coverage target"
+        echo "  ${CYAN}utf generate examples/sample.rs${NC}  # 75% coverage target"
         echo ""
     else
         echo "${ERROR} Installation verification failed"

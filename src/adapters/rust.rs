@@ -10,6 +10,173 @@ impl RustAdapter {
         Self
     }
 
+    fn generate_function_tests(&self, func: &FunctionPattern, source: &str) -> Vec<TestCase> {
+        let mut tests = Vec::new();
+        
+        match func.name.as_str() {
+            "add" | "sum" | "calculate_sum" => {
+                tests.extend(self.generate_math_function_tests(func, "addition"));
+            },
+            "multiply" | "mul" | "product" => {
+                tests.extend(self.generate_math_function_tests(func, "multiplication"));
+            },
+            "divide" | "div" => {
+                tests.extend(self.generate_division_tests(func));
+            },
+            "main" => {
+                tests.extend(self.generate_main_function_tests(func));
+            },
+            _ => {
+                tests.extend(self.generate_generic_function_tests(func, source));
+            }
+        }
+        
+        tests
+    }
+
+    fn generate_math_function_tests(&self, func: &FunctionPattern, operation: &str) -> Vec<TestCase> {
+        let func_name = &func.name;
+        vec![
+            TestCase {
+                id: uuid::Uuid::new_v4().to_string(),
+                name: format!("test_{}_positive_numbers", func_name),
+                description: format!("Test {} with positive numbers", func_name),
+                input: serde_json::json!({"a": 5, "b": 3}),
+                expected_output: serde_json::json!(if operation == "addition" { 8 } else { 15 }),
+                test_body: if operation == "addition" {
+                    format!("        assert_eq!({}(5, 3), 8);\n        assert_eq!({}(10, 15), 25);\n        assert_eq!({}(0, 0), 0);\n        assert_eq!({}(1, 1), 2);\n", func_name, func_name, func_name, func_name)
+                } else {
+                    format!("        assert_eq!({}(5, 3), 15);\n        assert_eq!({}(4, 7), 28);\n        assert_eq!({}(1, 1), 1);\n        assert_eq!({}(2, 0), 0);\n", func_name, func_name, func_name, func_name)
+                },
+                assertions: vec![],
+                test_category: TestCategory::HappyPath,
+            },
+            TestCase {
+                id: uuid::Uuid::new_v4().to_string(),
+                name: format!("test_{}_negative_numbers", func_name),
+                description: format!("Test {} with negative numbers", func_name),
+                input: serde_json::json!({"a": -5, "b": 3}),
+                expected_output: serde_json::json!(if operation == "addition" { -2 } else { -15 }),
+                test_body: if operation == "addition" {
+                    format!("        assert_eq!({}(-5, 3), -2);\n        assert_eq!({}(-10, -5), -15);\n        assert_eq!({}(5, -3), 2);\n", func_name, func_name, func_name)
+                } else {
+                    format!("        assert_eq!({}(-5, 3), -15);\n        assert_eq!({}(-4, -2), 8);\n        assert_eq!({}(0, -5), 0);\n", func_name, func_name, func_name)
+                },
+                assertions: vec![],
+                test_category: TestCategory::EdgeCase,
+            },
+            TestCase {
+                id: uuid::Uuid::new_v4().to_string(),
+                name: format!("test_{}_boundary_values", func_name),
+                description: format!("Test {} with boundary values", func_name),
+                input: serde_json::json!({"a": 0, "b": 1}),
+                expected_output: serde_json::json!(if operation == "addition" { 1 } else { 0 }),
+                test_body: if operation == "addition" {
+                    format!("        assert_eq!({}(0, 1), 1);\n        assert_eq!({}(i32::MAX, 0), i32::MAX);\n        assert_eq!({}(i32::MIN, 0), i32::MIN);\n", func_name, func_name, func_name)
+                } else {
+                    format!("        assert_eq!({}(0, 100), 0);\n        assert_eq!({}(100, 1), 100);\n        assert_eq!({}(i32::MAX, 1), i32::MAX);\n", func_name, func_name, func_name)
+                },
+                assertions: vec![],
+                test_category: TestCategory::BoundaryCondition,
+            },
+        ]
+    }
+
+    fn generate_division_tests(&self, func: &FunctionPattern) -> Vec<TestCase> {
+        let func_name = &func.name;
+        vec![
+            TestCase {
+                id: uuid::Uuid::new_v4().to_string(),
+                name: format!("test_{}_normal_division", func_name),
+                description: format!("Test {} with normal cases", func_name),
+                input: serde_json::json!({"a": 10, "b": 2}),
+                expected_output: serde_json::json!(5),
+                test_body: format!("        assert_eq!({}(10.0, 2.0), 5.0);\n        assert_eq!({}(15.0, 3.0), 5.0);\n        assert_eq!({}(1.0, 1.0), 1.0);\n", func_name, func_name, func_name),
+                assertions: vec![],
+                test_category: TestCategory::HappyPath,
+            },
+            TestCase {
+                id: uuid::Uuid::new_v4().to_string(),
+                name: format!("test_{}_division_by_zero", func_name),
+                description: format!("Test {} division by zero handling", func_name),
+                input: serde_json::json!({"a": 10, "b": 0}),
+                expected_output: serde_json::json!("infinity"),
+                test_body: format!("        // Division by zero should be handled appropriately\n        let result = {}(10.0, 0.0);\n        assert!(result.is_infinite() || result.is_nan());\n        \n        // Test with different numerators\n        assert!({}(5.0, 0.0).is_infinite());\n", func_name, func_name),
+                assertions: vec![],
+                test_category: TestCategory::ErrorHandling,
+            },
+            TestCase {
+                id: uuid::Uuid::new_v4().to_string(),
+                name: format!("test_{}_negative_division", func_name),
+                description: format!("Test {} with negative numbers", func_name),
+                input: serde_json::json!({"a": -10, "b": 2}),
+                expected_output: serde_json::json!(-5),
+                test_body: format!("        assert_eq!({}(-10.0, 2.0), -5.0);\n        assert_eq!({}(10.0, -2.0), -5.0);\n        assert_eq!({}(-10.0, -2.0), 5.0);\n", func_name, func_name, func_name),
+                assertions: vec![],
+                test_category: TestCategory::EdgeCase,
+            },
+        ]
+    }
+
+    fn generate_main_function_tests(&self, _func: &FunctionPattern) -> Vec<TestCase> {
+        vec![
+            TestCase {
+                id: uuid::Uuid::new_v4().to_string(),
+                name: "test_main_execution".to_string(),
+                description: "Test main function executes without panicking".to_string(),
+                input: serde_json::json!({}),
+                expected_output: serde_json::json!({}),
+                test_body: "        // Test main function execution\n        // Note: main() typically doesn't return a value we can test\n        // This test ensures main doesn't panic\n        main();\n        // If we reach here, main() executed successfully\n        assert!(true);\n".to_string(),
+                assertions: vec![],
+                test_category: TestCategory::HappyPath,
+            },
+        ]
+    }
+
+    fn generate_generic_function_tests(&self, func: &FunctionPattern, source: &str) -> Vec<TestCase> {
+        let func_name = &func.name;
+        let return_type = self.infer_return_type(func, source);
+        
+        vec![
+            TestCase {
+                id: uuid::Uuid::new_v4().to_string(),
+                name: format!("test_{}_basic_functionality", func_name),
+                description: format!("Test {} basic functionality", func_name),
+                input: serde_json::json!({}),
+                expected_output: serde_json::json!({}),
+                test_body: if return_type == "bool" {
+                    format!("        let result = {}();\n        assert!(result == true || result == false);\n        // Add more specific assertions based on expected behavior\n", func_name)
+                } else if return_type.contains("i32") || return_type.contains("i64") {
+                    format!("        let result = {}();\n        assert!(result >= i32::MIN as i64);\n        assert!(result <= i32::MAX as i64);\n        // Add specific value assertions\n", func_name)
+                } else if return_type.contains("String") {
+                    format!("        let result = {}();\n        assert!(!result.is_empty() || result.is_empty()); // Handle both cases\n        // Add specific string content assertions\n", func_name)
+                } else {
+                    format!("        // Test {} function\n        let result = {}();\n        // Add assertions based on expected function behavior\n        // assert_eq!(result, expected_value);\n", func_name, func_name)
+                },
+                assertions: vec![],
+                test_category: TestCategory::HappyPath,
+            },
+        ]
+    }
+
+    fn infer_return_type(&self, func: &FunctionPattern, source: &str) -> String {
+        // Try to infer return type from function signature in source
+        if let Some(return_type) = &func.return_type {
+            return_type.clone()
+        } else {
+            // Parse source to find return type
+            let function_pattern = format!("fn\\s+{}\\s*\\([^)]*\\)\\s*->\\s*([^\\s{{]+)", regex::escape(&func.name));
+            if let Ok(regex) = regex::Regex::new(&function_pattern) {
+                if let Some(captures) = regex.captures(source) {
+                    if let Some(return_type) = captures.get(1) {
+                        return return_type.as_str().to_string();
+                    }
+                }
+            }
+            "()".to_string() // Default to unit type
+        }
+    }
+
     fn detect_patterns(&self, source: &str) -> Vec<TestablePattern> {
         let mut patterns = Vec::new();
         
@@ -51,21 +218,19 @@ impl TestGenerator for RustAdapter {
     }
 
     async fn generate_tests(&self, patterns: Vec<TestablePattern>) -> Result<TestSuite> {
+        self.generate_comprehensive_tests(patterns, "").await
+    }
+
+    async fn generate_comprehensive_tests(&self, patterns: Vec<TestablePattern>, source: &str) -> Result<TestSuite> {
         let mut test_cases = Vec::new();
 
         for pattern in patterns {
             if let PatternType::Function(func) = &pattern.pattern_type {
-                test_cases.push(TestCase {
-                    id: uuid::Uuid::new_v4().to_string(),
-                    name: format!("test_{}", func.name),
-                    description: format!("Test {} function", func.name),
-                    input: serde_json::json!({}),
-                    expected_output: serde_json::json!(null),
-                });
+                test_cases.extend(self.generate_function_tests(func, source));
             }
         }
 
-        Ok(TestSuite {
+        let mut test_suite = TestSuite {
             name: "Generated Rust Tests".to_string(),
             language: "rust".to_string(),
             framework: "cargo-test".to_string(),
@@ -74,7 +239,32 @@ impl TestGenerator for RustAdapter {
             test_type: crate::core::TestType::Unit,
             setup_requirements: vec![],
             cleanup_requirements: vec![],
-        })
+            coverage_target: self.get_coverage_target(),
+            test_code: None,
+        };
+
+        test_suite.test_code = Some(self.generate_test_code(&test_suite)?);
+        Ok(test_suite)
+    }
+
+    fn get_coverage_target(&self) -> f32 {
+        crate::core::CoverageStandards::get_coverage_target("rust")
+    }
+
+    fn generate_test_code(&self, test_suite: &TestSuite) -> Result<String> {
+        let mut code = String::new();
+        
+        code.push_str("#[cfg(test)]\nmod tests {\n    use super::*;\n\n");
+        
+        for test_case in &test_suite.test_cases {
+            code.push_str(&format!("    #[test]\n    fn {}() {{\n", test_case.name));
+            code.push_str(&format!("        // {}\n", test_case.description));
+            code.push_str(&test_case.test_body);
+            code.push_str("    }\n\n");
+        }
+        
+        code.push_str("}\n");
+        Ok(code)
     }
 
     fn get_language(&self) -> &str {

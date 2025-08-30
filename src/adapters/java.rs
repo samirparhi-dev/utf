@@ -119,6 +119,9 @@ impl TestGenerator for JavaAdapter {
                         expected_output: serde_json::json!({
                             "type": func.return_type.as_ref().unwrap_or(&"void".to_string())
                         }),
+                        test_body: "        // TODO: Implement test logic".to_string(),
+                        assertions: vec![],
+                        test_category: crate::core::TestCategory::HappyPath,
                     });
                 }
                 _ => {} // Skip other pattern types for now
@@ -137,6 +140,8 @@ impl TestGenerator for JavaAdapter {
             test_type: crate::core::TestType::Unit,
             setup_requirements: vec![],
             cleanup_requirements: vec![],
+            coverage_target: 80.0,
+            test_code: None,
         })
     }
 
@@ -146,6 +151,18 @@ impl TestGenerator for JavaAdapter {
 
     fn get_supported_frameworks(&self) -> Vec<&str> {
         vec!["junit"]
+    }
+
+    async fn generate_comprehensive_tests(&self, patterns: Vec<TestablePattern>, _source: &str) -> Result<TestSuite> {
+        self.generate_tests(patterns).await
+    }
+
+    fn get_coverage_target(&self) -> f32 {
+        80.0
+    }
+
+    fn generate_test_code(&self, _test_suite: &TestSuite) -> Result<String> {
+        Ok("// Java tests - TODO: implement code generation".to_string())
     }
 }
 

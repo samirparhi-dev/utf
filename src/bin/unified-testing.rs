@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use unified_test_framework::{TestOrchestrator, LanguageLoader, IntegrationTestGenerator};
+use unified_test_framework::{TestOrchestrator, LanguageLoader, IntegrationTestGenerator, AsciiArt};
 use std::fs;
 use std::path::Path;
 use std::collections::HashMap;
@@ -9,8 +9,9 @@ use git2::Repository;
 use walkdir::WalkDir;
 
 #[derive(Parser)]
-#[command(name = "unified-testing")]
+#[command(name = "utf")]
 #[command(about = "A unified test generation framework for multiple languages")]
+#[command(version)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -105,6 +106,9 @@ enum PluginType {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Display ASCII art banner for branding
+    AsciiArt::display_banner_colored();
+    
     let cli = Cli::parse();
 
     match cli.command {
@@ -879,6 +883,12 @@ tasks {
 }
 
 fn generate_test_file_content(test_suite: &unified_test_framework::TestSuite) -> Result<String> {
+    // If the test suite has generated test code, use it directly
+    if let Some(ref test_code) = test_suite.test_code {
+        return Ok(test_code.clone());
+    }
+    
+    // Fallback to the old method for backward compatibility
     let mut content = String::new();
     
     // Add imports only for non-Rust languages
@@ -890,14 +900,20 @@ fn generate_test_file_content(test_suite: &unified_test_framework::TestSuite) ->
         content.push('\n');
     }
     
-    // Add test cases based on language
+    // Add test cases based on language, now using test_body from individual test cases
     match test_suite.language.as_str() {
         "javascript" => {
             content.push_str("describe('Generated Tests', () => {\n");
             for test_case in &test_suite.test_cases {
                 content.push_str(&format!(
-                    "  test('{}', () => {{\n    // {}\n    // TODO: Implement test logic\n  }});\n\n",
-                    test_case.name, test_case.description
+                    "  test('{}', () => {{\n    // {}\n{}\n  }});\n\n",
+                    test_case.name, 
+                    test_case.description,
+                    if test_case.test_body.trim().is_empty() {
+                        "    // TODO: Implement test logic".to_string()
+                    } else {
+                        test_case.test_body.clone()
+                    }
                 ));
             }
             content.push_str("});\n");
@@ -906,17 +922,29 @@ fn generate_test_file_content(test_suite: &unified_test_framework::TestSuite) ->
             content.push_str("class TestGenerated:\n");
             for test_case in &test_suite.test_cases {
                 content.push_str(&format!(
-                    "    def {}(self):\n        \"\"\" {} \"\"\"\n        # TODO: Implement test logic\n        pass\n\n",
-                    test_case.name, test_case.description
+                    "    def {}(self):\n        \"\"\" {} \"\"\"\n{}\n\n",
+                    test_case.name, 
+                    test_case.description,
+                    if test_case.test_body.trim().is_empty() {
+                        "        # TODO: Implement test logic\n        pass".to_string()
+                    } else {
+                        test_case.test_body.clone()
+                    }
                 ));
             }
         }
         "rust" => {
-            content.push_str("#[cfg(test)]\nmod tests {\n");
+            content.push_str("#[cfg(test)]\nmod tests {\n    use super::*;\n\n");
             for test_case in &test_suite.test_cases {
                 content.push_str(&format!(
-                    "    #[test]\n    fn {}() {{\n        // {}\n        // TODO: Implement test logic\n    }}\n\n",
-                    test_case.name, test_case.description
+                    "    #[test]\n    fn {}() {{\n        // {}\n{}\n    }}\n\n",
+                    test_case.name, 
+                    test_case.description,
+                    if test_case.test_body.trim().is_empty() {
+                        "        // TODO: Implement test logic".to_string()
+                    } else {
+                        test_case.test_body.clone()
+                    }
                 ));
             }
             content.push_str("}\n");
@@ -925,8 +953,14 @@ fn generate_test_file_content(test_suite: &unified_test_framework::TestSuite) ->
             content.push_str("package main\n\nimport (\n\t\"testing\"\n)\n\n");
             for test_case in &test_suite.test_cases {
                 content.push_str(&format!(
-                    "func {}(t *testing.T) {{\n\t// {}\n\t// TODO: Implement test logic\n}}\n\n",
-                    test_case.name, test_case.description
+                    "func {}(t *testing.T) {{\n\t// {}\n{}\n}}\n\n",
+                    test_case.name, 
+                    test_case.description,
+                    if test_case.test_body.trim().is_empty() {
+                        "\t// TODO: Implement test logic".to_string()
+                    } else {
+                        test_case.test_body.clone()
+                    }
                 ));
             }
         }
@@ -936,8 +970,14 @@ fn generate_test_file_content(test_suite: &unified_test_framework::TestSuite) ->
                 test_suite.name.replace("Test", "")));
             for test_case in &test_suite.test_cases {
                 content.push_str(&format!(
-                    "    @Test\n    public void {}() {{\n        // {}\n        // TODO: Implement test logic\n    }}\n\n",
-                    test_case.name, test_case.description
+                    "    @Test\n    public void {}() {{\n        // {}\n{}\n    }}\n\n",
+                    test_case.name, 
+                    test_case.description,
+                    if test_case.test_body.trim().is_empty() {
+                        "        // TODO: Implement test logic".to_string()
+                    } else {
+                        test_case.test_body.clone()
+                    }
                 ));
             }
             content.push_str("}\n");

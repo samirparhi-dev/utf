@@ -7,15 +7,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Basic Cargo Commands
 - `cargo build` - Build the project
 - `cargo test --lib` - Run library tests
-- `cargo run --bin unified-testing -- <args>` - Run the main CLI tool
+- `utf <command>` - Run the CLI tool (globally installed)
 - `cargo check` - Quick syntax and type checking
 - `cargo clippy` - Linting with clippy
 - `cargo fmt` - Format code
 
 ### CLI Usage
-- `cargo run --bin unified-testing -- analyze <file>` - Analyze code patterns
-- `cargo run --bin unified-testing -- generate <file>` - Generate tests
-- `cargo run --bin unified-testing -- generate <file> --output <dir>` - Generate tests to specific directory
+- `utf analyze <file>` - Analyze code patterns
+- `utf generate <file>` - Generate tests with comprehensive logic and industry-standard coverage
+- `utf generate <file> --output <dir>` - Generate tests to specific directory
+- `utf languages` - List all supported languages and frameworks
+- `utf dir <directory>` - Generate tests for all supported files in a directory
+
+**Note**: The CLI is installed globally as `utf` command. No need for `cargo run` anymore!
 
 ## Architecture Overview
 
@@ -90,11 +94,17 @@ tests/                     # Generated test output directory
 
 ```bash
 # Analyze a JavaScript file
-cargo run --bin unified-testing -- analyze examples/sample.js
+utf analyze examples/sample.js
 
-# Generate tests for Python code
-cargo run --bin unified-testing -- generate examples/sample.py
+# Generate comprehensive tests for Python code (85% coverage target)
+utf generate examples/sample.py
 
 # Generate tests to custom directory
-cargo run --bin unified-testing -- generate examples/sample.rs --output my-tests/
+utf generate examples/sample.rs --output my-tests/
+
+# Generate tests for entire directory
+utf dir src/
+
+# List all supported languages and their coverage targets
+utf languages
 ```

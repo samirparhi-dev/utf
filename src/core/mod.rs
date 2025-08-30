@@ -5,9 +5,11 @@ use std::collections::HashMap;
 
 pub mod dynamic_adapter;
 pub mod language_loader;
+pub mod coverage_standards;
 
 pub use dynamic_adapter::*;
 pub use language_loader::*;
+pub use coverage_standards::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceLocation {
@@ -175,6 +177,19 @@ pub struct TestCase {
     pub description: String,
     pub input: serde_json::Value,
     pub expected_output: serde_json::Value,
+    pub test_body: String,
+    pub assertions: Vec<String>,
+    pub test_category: TestCategory,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TestCategory {
+    HappyPath,
+    EdgeCase,
+    ErrorHandling,
+    BoundaryCondition,
+    Integration,
+    Performance,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -187,6 +202,8 @@ pub struct TestSuite {
     pub test_type: TestType,
     pub setup_requirements: Vec<String>,
     pub cleanup_requirements: Vec<String>,
+    pub coverage_target: f32,
+    pub test_code: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -205,8 +222,11 @@ impl Default for TestType {
 pub trait TestGenerator {
     async fn analyze_code(&self, source: &str, file_path: &str) -> Result<Vec<TestablePattern>>;
     async fn generate_tests(&self, patterns: Vec<TestablePattern>) -> Result<TestSuite>;
+    async fn generate_comprehensive_tests(&self, patterns: Vec<TestablePattern>, source: &str) -> Result<TestSuite>;
     fn get_language(&self) -> &str;
     fn get_supported_frameworks(&self) -> Vec<&str>;
+    fn get_coverage_target(&self) -> f32;
+    fn generate_test_code(&self, test_suite: &TestSuite) -> Result<String>;
 }
 
 #[async_trait]

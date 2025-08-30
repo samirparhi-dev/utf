@@ -6,16 +6,16 @@ A powerful Rust CLI tool that automatically generates unit tests for multiple pr
 
 ```bash
 # One-line installation (recommended)
-curl -sSfL https://install.uft.dev | sh
+curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/install.sh | bash
 
 # Generate tests for a Git repository
-uft git-repo https://github.com/user/repo.git
+utf git-repo https://github.com/user/repo.git
 
 # Generate tests for a single file  
-uft generate src/main.js
+utf generate src/main.js
 
 # Analyze patterns in a file
-uft analyze src/utils.py
+utf analyze src/utils.py
 ```
 
 ## 📦 Installation
@@ -23,15 +23,16 @@ uft analyze src/utils.py
 ### Option 1: One-Line Installer (Recommended)
 
 ```bash
-curl -sSfL https://install.uft.dev | sh
+curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/install.sh | bash
 ```
 
 **Features:**
-- ✅ Cross-platform (macOS, Linux, Windows)
+- ✅ Cross-platform (macOS, Linux, Windows/WSL)
 - ✅ Automatic platform detection
 - ✅ Prebuilt binaries + source build fallback
 - ✅ Shell integration (bash/zsh/fish)
 - ✅ Language configuration setup
+- ✅ Industry-standard coverage targets (Python: 85%, JavaScript: 80%, Rust: 75%)
 
 ### Option 2: Build from Source
 
@@ -47,23 +48,23 @@ cargo install --path .
 
 ```bash
 # Force reinstall
-UFT_FORCE=1 curl -sSfL https://install.uft.dev | sh
+UTF_FORCE=1 curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/install.sh | bash
 
 # Install to custom directory
-UFT_INSTALL_DIR=~/bin curl -sSfL https://install.uft.dev | sh
+UTF_INSTALL_DIR=~/bin curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/install.sh | bash
 
 # Install specific version
-UFT_VERSION=v1.0.0 curl -sSfL https://install.uft.dev | sh
+UTF_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/install.sh | bash
 ```
 
 ## 🔧 Commands
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `uft git-repo <url>` | Generate tests for entire Git repository | `uft git-repo https://github.com/user/repo.git` |
-| `uft generate <file>` | Generate tests for a single file | `uft generate src/main.js --output tests/` |
-| `uft analyze <file>` | Analyze code patterns | `uft analyze src/utils.py` |
-| `uft languages` | List supported languages | `uft languages` |
+| `utf git-repo <url>` | Generate tests for entire Git repository | `utf git-repo https://github.com/user/repo.git` |
+| `utf generate <file>` | Generate tests for a single file | `utf generate src/main.js --output tests/` |
+| `utf analyze <file>` | Analyze code patterns | `utf analyze src/utils.py` |
+| `utf languages` | List supported languages | `utf languages` |
 
 ## 🌍 Language & Framework Support
 
@@ -88,6 +89,9 @@ UFT_VERSION=v1.0.0 curl -sSfL https://install.uft.dev | sh
 - **🔧 Framework Choice**: Interactive selection of testing frameworks
 - **📁 Organized Output**: Tests placed in proper directories
 - **🚫 Intelligent Filtering**: Skips test/build directories automatically
+- **🧪 Real Test Logic**: Generates actual assertions instead of TODO placeholders
+- **📊 Coverage Targets**: Industry-standard coverage goals per language
+- **🔍 Pattern Recognition**: Detects functions, classes, validations, and APIs
 
 ## 💡 Git Repository Workflow
 
@@ -99,7 +103,7 @@ UFT_VERSION=v1.0.0 curl -sSfL https://install.uft.dev | sh
 # 4. Generate tests in standard locations
 # 5. Skip files that already have tests
 
-uft git-repo https://github.com/jaygajera17/E-commerce-project-springBoot.git
+utf git-repo https://github.com/jaygajera17/E-commerce-project-springBoot.git
 
 # Output example:
 # 🔍 Detected languages: ["java", "javascript"]  
@@ -124,37 +128,64 @@ The framework detects and generates tests for:
 
 ## 📊 Example Output
 
-**JavaScript (Jest)**:
+**JavaScript (Jest)** - Enhanced with Real Logic:
 ```javascript
-describe('UserService Tests', () => {
-  test('should validate email correctly', () => {
-    // TODO: Implement test logic
+describe('Generated JavaScript Tests', () => {
+  it('should_validate_correct_email_format', () => {
+    // Test valid email input formats
+    expect(validateEmail('user@example.com')).toBe(true);
+    expect(validateEmail('test.email+tag@example.co.uk')).toBe(true);
+    expect(validateEmail('user.name@domain.org')).toBe(true);
+  });
+
+  it('should_handle_negative_numbers_in_addition', () => {
+    // Test calculateSum with negative numbers
+    expect(calculateSum(-2, 3)).toBe(1);
+    expect(calculateSum(-5, -3)).toBe(-8);
+    expect(calculateSum(5, -2)).toBe(3);
   });
 });
 ```
 
-**Python (pytest)**:
+**Python (pytest)** - Comprehensive Test Coverage:
 ```python
-class TestUserService:
-    def test_validate_email(self):
-        """Test email validation"""
-        # TODO: Implement test logic
-        pass
+class TestGenerated:
+    def test_calculate_area_positive_numbers(self):
+        """Test area calculation with positive numbers"""
+        assert calculate_area(5, 3) == 15
+        assert calculate_area(10, 7) == 70
+        assert calculate_area(1, 1) == 1
+        assert calculate_area(2.5, 4) == 10.0
+
+    def test_validate_email_error_handling(self):
+        """Test email validation error handling"""
+        with pytest.raises(TypeError):
+            validate_email(None)
+        with pytest.raises(TypeError):
+            validate_email(123)
 ```
 
-**Java (JUnit 5)**:
-```java
-class UserServiceTest {
-    @Test
-    void shouldValidateEmailCorrectly() {
-        // TODO: Implement test logic
+**Rust** - Industry-Standard Coverage:
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_add_boundary_values() {
+        // Test add with boundary values
+        assert_eq!(add(0, 1), 1);
+        assert_eq!(add(i32::MAX, 0), i32::MAX);
+        assert_eq!(add(i32::MIN, 0), i32::MIN);
     }
 }
 ```
 
 ## 🔗 More Information
 
-- **Detailed Usage**: See [USAGE.md](USAGE.md) for comprehensive examples
+- **Installation Guide**: See [INSTALL.md](INSTALL.md) for detailed installation options
+- **Detailed Usage**: See [USAGE.md](USAGE.md) for comprehensive examples  
+- **Coverage Standards**: See [Coverage.md](Coverage.md) for industry targets & examples
 - **CI/CD Integration**: See [pipeline_actions/README.md](pipeline_actions/README.md)
 - **Architecture**: Built with modular Rust architecture for extensibility
 

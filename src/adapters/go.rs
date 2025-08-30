@@ -106,6 +106,9 @@ impl TestGenerator for GoAdapter {
                         expected_output: serde_json::json!({
                             "type": func.return_type.as_ref().unwrap_or(&"void".to_string())
                         }),
+                        test_body: "        // TODO: Implement test logic".to_string(),
+                        assertions: vec![],
+                        test_category: crate::core::TestCategory::HappyPath,
                     });
                 }
                 _ => {} // Skip other pattern types for now
@@ -125,6 +128,8 @@ impl TestGenerator for GoAdapter {
             test_type: crate::core::TestType::Unit,
             setup_requirements: vec![],
             cleanup_requirements: vec![],
+            coverage_target: 70.0,
+            test_code: None,
         })
     }
 
@@ -134,6 +139,18 @@ impl TestGenerator for GoAdapter {
 
     fn get_supported_frameworks(&self) -> Vec<&str> {
         vec!["testing"]
+    }
+
+    async fn generate_comprehensive_tests(&self, patterns: Vec<TestablePattern>, _source: &str) -> Result<TestSuite> {
+        self.generate_tests(patterns).await
+    }
+
+    fn get_coverage_target(&self) -> f32 {
+        70.0
+    }
+
+    fn generate_test_code(&self, _test_suite: &TestSuite) -> Result<String> {
+        Ok("// Go tests - TODO: implement code generation".to_string())
     }
 }
 

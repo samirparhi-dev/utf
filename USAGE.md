@@ -35,7 +35,7 @@ uft --help
 cargo build --release
 
 # Use with full path
-./target/release/uft --help
+./target/release/utf --help
 ```
 
 ## 🔧 Core Commands
@@ -734,14 +734,14 @@ generate-tests:
 
 ### Common Issues
 
-**1. Command not found: `uft`**
+**1. Command not found: `utf`**
 ```bash
 # Solutions:
 # Install globally
 cargo install --path .
 
 # Or use full path
-./target/release/uft --help
+./target/release/utf --help
 
 # Or add to PATH
 export PATH="$PWD/target/release:$PATH"
