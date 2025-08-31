@@ -141,9 +141,9 @@ jobs:
     - name: Deploy installer script
       run: |
         # Copy installer script to docs for direct access
-        cp install.sh docs/
+        cp docs/installation/install.sh docs/
         
         # Create a simple endpoint that serves the script
         echo "#!/usr/bin/env bash" > docs/install
-        cat install.sh >> docs/install
+        cat docs/installation/install.sh >> docs/install
         chmod +x docs/install

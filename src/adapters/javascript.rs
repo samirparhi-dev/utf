@@ -253,25 +253,80 @@ impl JavaScriptAdapter {
         ]
     }
 
-    fn generate_generic_function_tests(&self, func: &FunctionPattern, _source: &str) -> Vec<TestCase> {
-        vec![
-            TestCase {
+    fn generate_generic_function_tests(&self, func: &FunctionPattern, source: &str) -> Vec<TestCase> {
+        let mut tests = Vec::new();
+        
+        // Generate basic functionality test with real assertions
+        tests.push(TestCase {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: format!("should_execute_{}_with_valid_input", func.name),
+            description: format!("Test {} function with valid input", func.name),
+            input: self.generate_sample_inputs(func),
+            expected_output: self.generate_expected_output(func),
+            test_body: self.generate_basic_test_body(func),
+            assertions: vec![],
+            test_category: TestCategory::HappyPath,
+        });
+
+        // Generate boundary condition tests
+        tests.push(TestCase {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: format!("should_handle_{}_boundary_conditions", func.name),
+            description: format!("Test {} function boundary conditions", func.name),
+            input: serde_json::json!({}),
+            expected_output: serde_json::json!(null),
+            test_body: self.generate_boundary_test_body(func),
+            assertions: vec![],
+            test_category: TestCategory::BoundaryCondition,
+        });
+
+        // Generate error handling tests
+        tests.push(TestCase {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: format!("should_handle_{}_error_cases", func.name),
+            description: format!("Test {} function error handling", func.name),
+            input: serde_json::json!({}),
+            expected_output: serde_json::json!(null),
+            test_body: self.generate_error_test_body(func),
+            assertions: vec![],
+            test_category: TestCategory::ErrorHandling,
+        });
+
+        // Generate type validation tests for functions with parameters
+        if !func.parameters.is_empty() {
+            tests.push(TestCase {
                 id: uuid::Uuid::new_v4().to_string(),
-                name: format!("should_execute_{}_successfully", func.name),
-                description: format!("Test {} function execution", func.name),
+                name: format!("should_validate_{}_input_types", func.name),
+                description: format!("Test {} function input type validation", func.name),
                 input: serde_json::json!({}),
                 expected_output: serde_json::json!(null),
-                test_body: format!("    expect(typeof {}).toBe('function');\n    // Add specific test cases based on function behavior\n", func.name),
+                test_body: self.generate_type_validation_test_body(func),
                 assertions: vec![],
-                test_category: TestCategory::HappyPath,
-            },
-        ]
+                test_category: TestCategory::EdgeCase,
+            });
+        }
+
+        // Generate async tests if function appears to be async
+        if self.is_async_function(source, &func.name) {
+            tests.push(TestCase {
+                id: uuid::Uuid::new_v4().to_string(),
+                name: format!("should_handle_{}_async_execution", func.name),
+                description: format!("Test {} async function execution", func.name),
+                input: serde_json::json!({}),
+                expected_output: serde_json::json!(null),
+                test_body: self.generate_async_test_body(func),
+                assertions: vec![],
+                test_category: TestCategory::Integration,
+            });
+        }
+
+        tests
     }
 
     fn detect_patterns(&self, source: &str) -> Vec<TestablePattern> {
         let mut patterns = Vec::new();
         
-        // Simple regex-based pattern detection for demo
+        // Detect email form fields
         if let Ok(email_regex) = Regex::new(r#"type\s*=\s*["']email["']"#) {
             if email_regex.is_match(source) {
                 patterns.push(TestablePattern {
@@ -296,29 +351,99 @@ impl JavaScriptAdapter {
             }
         }
 
-        // Detect function patterns
+        // Detect function declarations: function name(params)
         if let Ok(function_regex) = Regex::new(r"function\s+(\w+)\s*\(([^)]*)\)") {
             for captures in function_regex.captures_iter(source) {
                 if let (Some(name), Some(params)) = (captures.get(1), captures.get(2)) {
+                    let line_num = source[..captures.get(0).unwrap().start()].matches('\n').count() + 1;
+                    let params_list: Vec<String> = if params.as_str().trim().is_empty() {
+                        vec![]
+                    } else {
+                        params.as_str().split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
+                    };
+                    
                     patterns.push(TestablePattern {
                         id: uuid::Uuid::new_v4().to_string(),
                         pattern_type: PatternType::Function(FunctionPattern {
                             name: name.as_str().to_string(),
-                            parameters: params.as_str().split(',').map(|s| s.trim().to_string()).collect(),
-                            return_type: None,
+                            parameters: params_list,
+                            return_type: self.infer_return_type(source, name.as_str()),
                         }),
                         location: SourceLocation {
                             file: "unknown".to_string(),
-                            line: 1,
+                            line: line_num,
                             column: name.start(),
                         },
                         context: Context {
                             function_name: Some(name.as_str().to_string()),
-                            class_name: None,
+                            class_name: self.extract_containing_class(source, name.start()),
                             module_name: None,
                         },
                         confidence: 0.9,
                     });
+                }
+            }
+        }
+
+        // Detect arrow functions: const name = (params) => {}
+        if let Ok(arrow_regex) = Regex::new(r"(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>\s*\{") {
+            for captures in arrow_regex.captures_iter(source) {
+                if let Some(name) = captures.get(1) {
+                    let line_num = source[..captures.get(0).unwrap().start()].matches('\n').count() + 1;
+                    let params = self.extract_arrow_function_params(&captures[0]);
+                    
+                    patterns.push(TestablePattern {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        pattern_type: PatternType::Function(FunctionPattern {
+                            name: name.as_str().to_string(),
+                            parameters: params,
+                            return_type: self.infer_return_type(source, name.as_str()),
+                        }),
+                        location: SourceLocation {
+                            file: "unknown".to_string(),
+                            line: line_num,
+                            column: name.start(),
+                        },
+                        context: Context {
+                            function_name: Some(name.as_str().to_string()),
+                            class_name: self.extract_containing_class(source, name.start()),
+                            module_name: None,
+                        },
+                        confidence: 0.9,
+                    });
+                }
+            }
+        }
+
+        // Detect class methods: methodName(params) { or async methodName(params) {
+        if let Ok(method_regex) = Regex::new(r"(?:async\s+)?(\w+)\s*\([^)]*\)\s*\{") {
+            for captures in method_regex.captures_iter(source) {
+                if let Some(name) = captures.get(1) {
+                    // Skip constructors and common keywords
+                    if name.as_str() != "constructor" && name.as_str() != "function" && name.as_str() != "if" && name.as_str() != "for" && name.as_str() != "while" {
+                        let line_num = source[..captures.get(0).unwrap().start()].matches('\n').count() + 1;
+                        let params = self.extract_method_params(&captures[0]);
+                        
+                        patterns.push(TestablePattern {
+                            id: uuid::Uuid::new_v4().to_string(),
+                            pattern_type: PatternType::Function(FunctionPattern {
+                                name: name.as_str().to_string(),
+                                parameters: params,
+                                return_type: self.infer_return_type(source, name.as_str()),
+                            }),
+                            location: SourceLocation {
+                                file: "unknown".to_string(),
+                                line: line_num,
+                                column: name.start(),
+                            },
+                            context: Context {
+                                function_name: Some(name.as_str().to_string()),
+                                class_name: self.extract_containing_class(source, name.start()),
+                                module_name: None,
+                            },
+                            confidence: 0.85,
+                        });
+                    }
                 }
             }
         }
@@ -470,6 +595,337 @@ impl JavaScriptAdapter {
             }
         }
         props
+    }
+
+    fn infer_return_type(&self, source: &str, function_name: &str) -> Option<String> {
+        // Look for return statements in the function
+        if let Ok(function_regex) = Regex::new(&format!(r"(?:function\s+{}|{}\s*=.*?)\s*\([^)]*\)\s*\{{([^}}]*)}}", function_name, function_name)) {
+            if let Some(captures) = function_regex.captures(source) {
+                if let Some(body) = captures.get(1) {
+                    let body_str = body.as_str();
+                    if body_str.contains("return true") || body_str.contains("return false") {
+                        return Some("boolean".to_string());
+                    } else if body_str.contains("return \"") || body_str.contains("return '") || body_str.contains("return `") {
+                        return Some("string".to_string());
+                    } else if body_str.contains("return [") {
+                        return Some("array".to_string());
+                    } else if body_str.contains("return {") {
+                        return Some("object".to_string());
+                    } else if body_str.contains(r"return \d") {
+                        return Some("number".to_string());
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    fn extract_containing_class(&self, source: &str, position: usize) -> Option<String> {
+        // Find if this function is inside a class
+        let before_position = &source[..position];
+        if let Ok(class_regex) = Regex::new(r"class\s+(\w+)") {
+            for captures in class_regex.captures_iter(before_position) {
+                if let Some(class_name) = captures.get(1) {
+                    return Some(class_name.as_str().to_string());
+                }
+            }
+        }
+        None
+    }
+
+    fn extract_arrow_function_params(&self, function_def: &str) -> Vec<String> {
+        if let Ok(param_regex) = Regex::new(r"\(([^)]*)\)\s*=>") {
+            if let Some(captures) = param_regex.captures(function_def) {
+                if let Some(params_str) = captures.get(1) {
+                    let params = params_str.as_str().trim();
+                    if params.is_empty() {
+                        return vec![];
+                    }
+                    return params.split(',').map(|p| p.trim().to_string()).filter(|p| !p.is_empty()).collect();
+                }
+            }
+        }
+        vec![]
+    }
+
+    fn extract_method_params(&self, method_def: &str) -> Vec<String> {
+        if let Ok(param_regex) = Regex::new(r"\(([^)]*)\)") {
+            if let Some(captures) = param_regex.captures(method_def) {
+                if let Some(params_str) = captures.get(1) {
+                    let params = params_str.as_str().trim();
+                    if params.is_empty() {
+                        return vec![];
+                    }
+                    return params.split(',').map(|p| p.trim().to_string()).filter(|p| !p.is_empty()).collect();
+                }
+            }
+        }
+        vec![]
+    }
+
+    fn generate_sample_inputs(&self, func: &FunctionPattern) -> serde_json::Value {
+        let mut inputs = serde_json::Map::new();
+        for (i, param) in func.parameters.iter().enumerate() {
+            let value = self.get_sample_value_for_param(param, i);
+            inputs.insert(param.clone(), value);
+        }
+        serde_json::Value::Object(inputs)
+    }
+
+    fn get_sample_value_for_param(&self, param: &str, index: usize) -> serde_json::Value {
+        let param_lower = param.to_lowercase();
+        match param_lower.as_str() {
+            p if p.contains("email") => serde_json::json!("test@example.com"),
+            p if p.contains("id") => serde_json::json!(index + 1),
+            p if p.contains("name") => serde_json::json!(format!("TestName{}", index + 1)),
+            p if p.contains("count") || p.contains("number") || p.contains("age") => serde_json::json!(42),
+            p if p.contains("price") || p.contains("amount") => serde_json::json!(19.99),
+            p if p.contains("bool") || p.contains("flag") || p.contains("enabled") => serde_json::json!(true),
+            p if p.contains("array") || p.contains("list") => serde_json::json!([1, 2, 3]),
+            p if p.contains("url") || p.contains("link") => serde_json::json!("https://example.com"),
+            p if p.contains("date") => serde_json::json!("2023-12-01"),
+            p if p.contains("phone") => serde_json::json!("+1-234-567-8900"),
+            p if p.contains("a") || p.contains("b") || p.contains("x") || p.contains("y") => serde_json::json!(5),
+            _ => serde_json::json!(format!("testValue{}", index + 1)),
+        }
+    }
+
+    fn generate_expected_output(&self, func: &FunctionPattern) -> serde_json::Value {
+        match &func.return_type {
+            Some(return_type) => match return_type.as_str() {
+                "boolean" => serde_json::json!(true),
+                "string" => serde_json::json!("expected_result"),
+                "number" => serde_json::json!(42),
+                "array" => serde_json::json!([]),
+                "object" => serde_json::json!({}),
+                _ => serde_json::json!(null),
+            },
+            None => {
+                // Infer based on function name
+                let name_lower = func.name.to_lowercase();
+                if name_lower.contains("validate") || name_lower.contains("check") || name_lower.contains("is") {
+                    serde_json::json!(true)
+                } else if name_lower.contains("calculate") || name_lower.contains("add") || name_lower.contains("sum") {
+                    serde_json::json!(42)
+                } else if name_lower.contains("format") || name_lower.contains("get") || name_lower.contains("to") {
+                    serde_json::json!("result")
+                } else {
+                    serde_json::json!(null)
+                }
+            }
+        }
+    }
+
+    fn generate_basic_test_body(&self, func: &FunctionPattern) -> String {
+        let mut test_body = String::new();
+        
+        if func.parameters.is_empty() {
+            // No parameters
+            test_body.push_str(&format!("    const result = {}();\n", func.name));
+            test_body.push_str("    expect(result).toBeDefined();\n");
+            
+            // Add return type specific assertions
+            match &func.return_type {
+                Some(return_type) => {
+                    match return_type.as_str() {
+                        "boolean" => {
+                            test_body.push_str("    expect(typeof result).toBe('boolean');\n");
+                            test_body.push_str(&format!("    expect({}()).toBe(true);\n", func.name));
+                        },
+                        "string" => {
+                            test_body.push_str("    expect(typeof result).toBe('string');\n");
+                            test_body.push_str("    expect(result.length).toBeGreaterThanOrEqual(0);\n");
+                        },
+                        "number" => {
+                            test_body.push_str("    expect(typeof result).toBe('number');\n");
+                            test_body.push_str("    expect(result).not.toBeNaN();\n");
+                        },
+                        "array" => {
+                            test_body.push_str("    expect(Array.isArray(result)).toBe(true);\n");
+                        },
+                        "object" => {
+                            test_body.push_str("    expect(typeof result).toBe('object');\n");
+                            test_body.push_str("    expect(result).not.toBeNull();\n");
+                        },
+                        _ => test_body.push_str("    expect(result).toBeDefined();\n"),
+                    }
+                },
+                None => {
+                    // Infer based on function name
+                    let name_lower = func.name.to_lowercase();
+                    if name_lower.contains("validate") || name_lower.contains("check") || name_lower.contains("is") {
+                        test_body.push_str("    expect(typeof result).toBe('boolean');\n");
+                    } else if name_lower.contains("calculate") || name_lower.contains("add") || name_lower.contains("sum") {
+                        test_body.push_str("    expect(typeof result).toBe('number');\n");
+                        test_body.push_str("    expect(result).not.toBeNaN();\n");
+                    } else {
+                        test_body.push_str("    expect(result).toBeDefined();\n");
+                    }
+                }
+            }
+        } else {
+            // With parameters - generate specific test cases
+            let sample_params = self.generate_sample_parameters(func);
+            test_body.push_str(&format!("    const result = {}({});\n", func.name, sample_params));
+            test_body.push_str("    expect(result).toBeDefined();\n");
+            
+            // Add specific assertions based on function name patterns
+            let name_lower = func.name.to_lowercase();
+            if name_lower.contains("add") || name_lower.contains("sum") {
+                test_body.push_str("    expect(typeof result).toBe('number');\n");
+                test_body.push_str("    expect(result).toBeGreaterThan(0);\n");
+            } else if name_lower.contains("multiply") {
+                test_body.push_str("    expect(typeof result).toBe('number');\n");
+            } else if name_lower.contains("validate") {
+                test_body.push_str("    expect(typeof result).toBe('boolean');\n");
+            }
+        }
+        
+        test_body
+    }
+
+    fn generate_boundary_test_body(&self, func: &FunctionPattern) -> String {
+        let mut test_body = String::new();
+        
+        if func.parameters.is_empty() {
+            test_body.push_str(&format!("    // Test {} with no parameters\n", func.name));
+            test_body.push_str(&format!("    expect(() => {}()).not.toThrow();\n", func.name));
+        } else {
+            test_body.push_str("    // Test boundary conditions\n");
+            
+            // Test with zero values
+            let zero_params = func.parameters.iter().map(|_| "0").collect::<Vec<_>>().join(", ");
+            test_body.push_str(&format!("    expect(() => {}({})).not.toThrow();\n", func.name, zero_params));
+            
+            // Test with empty strings if applicable
+            let empty_params = func.parameters.iter().map(|p| {
+                if p.to_lowercase().contains("string") || p.to_lowercase().contains("name") || p.to_lowercase().contains("email") {
+                    "\"\""
+                } else {
+                    "0"
+                }
+            }).collect::<Vec<_>>().join(", ");
+            test_body.push_str(&format!("    expect(() => {}({})).not.toThrow();\n", func.name, empty_params));
+            
+            // Test with large numbers if numeric function
+            let name_lower = func.name.to_lowercase();
+            if name_lower.contains("add") || name_lower.contains("multiply") || name_lower.contains("calculate") {
+                let large_params = func.parameters.iter().map(|_| "Number.MAX_SAFE_INTEGER").collect::<Vec<_>>().join(", ");
+                test_body.push_str(&format!("    expect(() => {}({})).not.toThrow();\n", func.name, large_params));
+            }
+        }
+        
+        test_body
+    }
+
+    fn generate_error_test_body(&self, func: &FunctionPattern) -> String {
+        let mut test_body = String::new();
+        
+        if !func.parameters.is_empty() {
+            test_body.push_str("    // Test error handling with invalid inputs\n");
+            
+            // Test with null values
+            let null_params = func.parameters.iter().map(|_| "null").collect::<Vec<_>>().join(", ");
+            test_body.push_str(&format!("    expect(() => {}({})).toThrow();\n", func.name, null_params));
+            
+            // Test with undefined values
+            let undefined_params = func.parameters.iter().map(|_| "undefined").collect::<Vec<_>>().join(", ");
+            test_body.push_str(&format!("    expect(() => {}({})).toThrow();\n", func.name, undefined_params));
+            
+            // Test with wrong types
+            let wrong_type_params = func.parameters.iter().map(|p| {
+                let p_lower = p.to_lowercase();
+                if p_lower.contains("number") || p_lower.contains("count") {
+                    "\"not_a_number\""
+                } else if p_lower.contains("string") || p_lower.contains("name") {
+                    "123"
+                } else {
+                    "\"invalid_input\""
+                }
+            }).collect::<Vec<_>>().join(", ");
+            test_body.push_str(&format!("    expect(() => {}({})).toThrow();\n", func.name, wrong_type_params));
+        } else {
+            test_body.push_str("    // Test function execution doesn't throw\n");
+            test_body.push_str(&format!("    expect(() => {}()).not.toThrow();\n", func.name));
+        }
+        
+        test_body
+    }
+
+    fn generate_type_validation_test_body(&self, func: &FunctionPattern) -> String {
+        let mut test_body = String::new();
+        
+        test_body.push_str("    // Test input type validation\n");
+        
+        // Test each parameter type
+        for (i, param) in func.parameters.iter().enumerate() {
+            let param_lower = param.to_lowercase();
+            
+            if param_lower.contains("number") || param_lower.contains("count") || param_lower.contains("age") {
+                test_body.push_str(&format!("    expect(() => {}()).toThrow(); // Invalid number type\n", 
+                    self.create_invalid_call(func, i, "\"not_a_number\"")));
+            } else if param_lower.contains("string") || param_lower.contains("name") {
+                test_body.push_str(&format!("    expect(() => {}()).toThrow(); // Invalid string type\n", 
+                    self.create_invalid_call(func, i, "123")));
+            } else if param_lower.contains("bool") || param_lower.contains("flag") {
+                test_body.push_str(&format!("    expect(() => {}()).toThrow(); // Invalid boolean type\n", 
+                    self.create_invalid_call(func, i, "\"not_boolean\"")));
+            }
+        }
+        
+        test_body
+    }
+
+    fn generate_async_test_body(&self, func: &FunctionPattern) -> String {
+        let mut test_body = String::new();
+        
+        test_body.push_str("    // Test async function execution\n");
+        
+        if func.parameters.is_empty() {
+            test_body.push_str(&format!("    await expect({}()).resolves.toBeDefined();\n", func.name));
+            test_body.push_str(&format!("    await expect({}()).resolves.not.toThrow();\n", func.name));
+        } else {
+            let sample_params = self.generate_sample_parameters(func);
+            test_body.push_str(&format!("    await expect({}({})).resolves.toBeDefined();\n", func.name, sample_params));
+            test_body.push_str(&format!("    await expect({}({})).resolves.not.toThrow();\n", func.name, sample_params));
+        }
+        
+        test_body
+    }
+
+    fn generate_sample_parameters(&self, func: &FunctionPattern) -> String {
+        func.parameters.iter().enumerate().map(|(i, param)| {
+            let param_lower = param.to_lowercase();
+            match param_lower.as_str() {
+                p if p.contains("email") => "\"test@example.com\"".to_string(),
+                p if p.contains("name") => format!("\"TestName{}\"", i + 1),
+                p if p.contains("count") || p.contains("number") || p.contains("age") => "42".to_string(),
+                p if p.contains("price") || p.contains("amount") => "19.99".to_string(),
+                p if p.contains("bool") || p.contains("flag") => "true".to_string(),
+                p if p.contains("array") || p.contains("list") => "[1, 2, 3]".to_string(),
+                p if p.contains("a") || p.contains("b") || p.contains("x") || p.contains("y") => "5".to_string(),
+                _ => format!("\"testValue{}\"", i + 1),
+            }
+        }).collect::<Vec<_>>().join(", ")
+    }
+
+    fn create_invalid_call(&self, func: &FunctionPattern, invalid_param_index: usize, invalid_value: &str) -> String {
+        let params: Vec<String> = func.parameters.iter().enumerate().map(|(i, _)| {
+            if i == invalid_param_index {
+                invalid_value.to_string()
+            } else {
+                "null".to_string()
+            }
+        }).collect();
+        
+        format!("{}({})", func.name, params.join(", "))
+    }
+
+    fn is_async_function(&self, source: &str, function_name: &str) -> bool {
+        source.contains(&format!("async function {}", function_name)) ||
+        source.contains(&format!("async {}", function_name)) ||
+        source.contains(&format!("{} = async", function_name)) ||
+        source.contains("await ") && source.contains(function_name)
     }
 }
 

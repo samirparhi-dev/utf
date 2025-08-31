@@ -6,7 +6,7 @@ A powerful Rust CLI tool that automatically generates unit tests for multiple pr
 
 ```bash
 # One-line installation (recommended)
-curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/docs/installation/install.sh | bash
 
 # Generate tests for a Git repository
 utf git-repo https://github.com/user/repo.git
@@ -23,7 +23,7 @@ utf analyze src/utils.py
 ### Option 1: One-Line Installer (Recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/docs/installation/install.sh | bash
 ```
 
 **Features:**
@@ -48,13 +48,13 @@ cargo install --path .
 
 ```bash
 # Force reinstall
-UTF_FORCE=1 curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/install.sh | bash
+UTF_FORCE=1 curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/docs/installation/install.sh | bash
 
 # Install to custom directory
-UTF_INSTALL_DIR=~/bin curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/install.sh | bash
+UTF_INSTALL_DIR=~/bin curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/docs/installation/install.sh | bash
 
 # Install specific version
-UTF_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/install.sh | bash
+UTF_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/docs/installation/install.sh | bash
 ```
 
 ## 🔧 Commands
@@ -183,12 +183,12 @@ mod tests {
 
 ## 🔗 More Information
 
-- **Installation Guide**: See [INSTALL.md](INSTALL.md) for detailed installation options
-- **Detailed Usage**: See [USAGE.md](USAGE.md) for comprehensive examples  
-- **Coverage Standards**: See [Coverage.md](Coverage.md) for industry targets & examples
+- **Installation Guide**: See [docs/installation/INSTALL.md](docs/installation/INSTALL.md) for detailed installation options
+- **Detailed Usage**: See [docs/usage/USAGE.md](docs/usage/USAGE.md) for comprehensive examples  
+- **Coverage Standards**: See [docs/usage/Coverage.md](docs/usage/Coverage.md) for industry targets & examples
 - **CI/CD Integration**: See [pipeline_actions/README.md](pipeline_actions/README.md)
 - **Architecture**: Built with modular Rust architecture for extensibility
 
 ---
 
-**Quick Links**: [Installation](#-installation) | [Commands](#-commands) | [Languages](#-language--framework-support) | [Examples](USAGE.md)
+**Quick Links**: [Installation](#-installation) | [Commands](#-commands) | [Languages](#-language--framework-support) | [Examples](docs/usage/USAGE.md)

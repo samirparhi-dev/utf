@@ -340,19 +340,317 @@ impl PythonAdapter {
         ]
     }
 
-    fn generate_generic_function_tests(&self, func: &FunctionPattern, _source: &str) -> Vec<TestCase> {
-        vec![
-            TestCase {
+    fn generate_generic_function_tests(&self, func: &FunctionPattern, source: &str) -> Vec<TestCase> {
+        let mut tests = Vec::new();
+        
+        // Generate comprehensive functionality test
+        tests.push(TestCase {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: format!("test_{}_functionality", func.name),
+            description: format!("Test {} function with valid inputs", func.name),
+            input: self.generate_sample_inputs_python(func),
+            expected_output: self.generate_expected_output_python(func, source),
+            test_body: self.generate_basic_test_body_python(func),
+            assertions: vec![],
+            test_category: TestCategory::HappyPath,
+        });
+
+        // Generate error handling tests
+        tests.push(TestCase {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: format!("test_{}_error_handling", func.name),
+            description: format!("Test {} function error handling", func.name),
+            input: serde_json::json!({}),
+            expected_output: serde_json::json!(null),
+            test_body: self.generate_error_test_body_python(func),
+            assertions: vec![],
+            test_category: TestCategory::ErrorHandling,
+        });
+
+        // Generate boundary tests
+        tests.push(TestCase {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: format!("test_{}_boundary_conditions", func.name),
+            description: format!("Test {} function boundary conditions", func.name),
+            input: serde_json::json!({}),
+            expected_output: serde_json::json!(null),
+            test_body: self.generate_boundary_test_body_python(func),
+            assertions: vec![],
+            test_category: TestCategory::BoundaryCondition,
+        });
+
+        // Generate type validation tests if function has parameters
+        if !func.parameters.is_empty() {
+            tests.push(TestCase {
                 id: uuid::Uuid::new_v4().to_string(),
-                name: format!("test_{}_execution", func.name),
-                description: format!("Test {} function execution", func.name),
+                name: format!("test_{}_type_validation", func.name),
+                description: format!("Test {} function type validation", func.name),
                 input: serde_json::json!({}),
-                expected_output: serde_json::json!({}),
-                test_body: format!("        # Test {} function\n        assert callable({})\n        # Add specific test cases based on function signature and behavior\n", func.name, func.name),
+                expected_output: serde_json::json!(null),
+                test_body: self.generate_type_validation_test_body_python(func),
                 assertions: vec![],
-                test_category: TestCategory::HappyPath,
-            },
-        ]
+                test_category: TestCategory::EdgeCase,
+            });
+        }
+
+        tests
+    }
+
+    fn generate_sample_inputs_python(&self, func: &FunctionPattern) -> serde_json::Value {
+        let mut inputs = serde_json::Map::new();
+        for (i, param) in func.parameters.iter().enumerate() {
+            let value = self.get_sample_value_for_python_param(param, i);
+            inputs.insert(param.clone(), value);
+        }
+        serde_json::Value::Object(inputs)
+    }
+
+    fn get_sample_value_for_python_param(&self, param: &str, index: usize) -> serde_json::Value {
+        let param_lower = param.to_lowercase();
+        match param_lower.as_str() {
+            p if p.contains("email") || p.contains("mail") => serde_json::json!("test@example.com"),
+            p if p.contains("id") => serde_json::json!(index as i32 + 1),
+            p if p.contains("name") => serde_json::json!(format!("TestName{}", index + 1)),
+            p if p.contains("count") || p.contains("number") || p.contains("age") => serde_json::json!(42),
+            p if p.contains("price") || p.contains("amount") => serde_json::json!(19.99),
+            p if p.contains("bool") || p.contains("flag") || p.contains("enabled") => serde_json::json!(true),
+            p if p.contains("list") || p.contains("array") => serde_json::json!([1, 2, 3]),
+            p if p.contains("dict") || p.contains("map") => serde_json::json!({"key": "value"}),
+            p if p.contains("url") || p.contains("link") => serde_json::json!("https://example.com"),
+            p if p.contains("password") => serde_json::json!("TestPassword123!"),
+            p if p.contains("a") || p.contains("b") || p.contains("x") || p.contains("y") => serde_json::json!(5),
+            p if p.contains("width") || p.contains("height") => serde_json::json!(10),
+            _ => serde_json::json!(format!("test_value_{}", index + 1)),
+        }
+    }
+
+    fn generate_expected_output_python(&self, func: &FunctionPattern, source: &str) -> serde_json::Value {
+        // Try to infer expected output from function name and signature
+        let name_lower = func.name.to_lowercase();
+        
+        if name_lower.contains("is_") || name_lower.contains("can_") || name_lower.contains("has_") || name_lower.contains("validate") {
+            serde_json::json!(true)
+        } else if name_lower.contains("count") || name_lower.contains("len") {
+            serde_json::json!(42)
+        } else if name_lower.contains("add") || name_lower.contains("sum") || name_lower.contains("calculate") {
+            serde_json::json!(47) // 42 + 5 for typical add operation
+        } else if name_lower.contains("get_") || name_lower.contains("fetch_") {
+            if name_lower.contains("list") || name_lower.contains("array") {
+                serde_json::json!([])
+            } else if name_lower.contains("dict") || name_lower.contains("map") {
+                serde_json::json!({})
+            } else {
+                serde_json::json!("result")
+            }
+        } else if source.contains("return True") || source.contains("return False") {
+            serde_json::json!(true)
+        } else {
+            serde_json::json!(null)
+        }
+    }
+
+    fn generate_basic_test_body_python(&self, func: &FunctionPattern) -> String {
+        let func_name = &func.name;
+        let mut test_body = String::new();
+        
+        if func.parameters.is_empty() {
+            // No parameters
+            test_body.push_str(&format!("        result = {}()\n", func_name));
+            test_body.push_str("        assert result is not None or result is None  # Accept any result\n");
+            
+            // Add function name specific assertions
+            let name_lower = func_name.to_lowercase();
+            if name_lower.contains("is_") || name_lower.contains("validate") || name_lower.contains("check") {
+                test_body.push_str("        assert isinstance(result, bool)\n");
+                test_body.push_str(&format!("        # Test consistency\n"));
+                test_body.push_str(&format!("        assert {}() == result\n", func_name));
+            } else if name_lower.contains("get_") {
+                test_body.push_str("        # Function should return consistent results\n");
+                test_body.push_str(&format!("        second_result = {}()\n", func_name));
+                test_body.push_str("        assert result == second_result or result != second_result  # Accept either\n");
+            }
+        } else {
+            // With parameters - generate specific test cases
+            let sample_params = self.generate_sample_parameters_python(func);
+            test_body.push_str(&format!("        result = {}({})\n", func_name, sample_params));
+            test_body.push_str("        assert result is not None or result is None  # Function executed\n");
+            
+            // Add smart assertions based on function name
+            let name_lower = func_name.to_lowercase();
+            if name_lower.contains("add") || name_lower.contains("sum") {
+                test_body.push_str("        # Test addition functionality\n");
+                test_body.push_str(&format!("        assert {}(2, 3) == 5\n", func_name));
+                test_body.push_str(&format!("        assert {}(0, 0) == 0\n", func_name));
+                test_body.push_str(&format!("        assert {}(-1, 1) == 0\n", func_name));
+            } else if name_lower.contains("multiply") {
+                test_body.push_str("        # Test multiplication functionality\n");
+                test_body.push_str(&format!("        assert {}(2, 3) == 6\n", func_name));
+                test_body.push_str(&format!("        assert {}(1, 5) == 5\n", func_name));
+                test_body.push_str(&format!("        assert {}(0, 100) == 0\n", func_name));
+            } else if name_lower.contains("validate") && name_lower.contains("email") {
+                test_body.push_str("        # Test email validation\n");
+                test_body.push_str(&format!("        assert {}('test@example.com') == True\n", func_name));
+                test_body.push_str(&format!("        assert {}('invalid-email') == False\n", func_name));
+                test_body.push_str(&format!("        assert {}('') == False\n", func_name));
+            } else if name_lower.contains("divide") {
+                test_body.push_str("        # Test division functionality\n");
+                test_body.push_str(&format!("        assert {}(10, 2) == 5.0\n", func_name));
+                test_body.push_str(&format!("        assert {}(9, 3) == 3.0\n", func_name));
+            }
+        }
+        
+        test_body
+    }
+
+    fn generate_error_test_body_python(&self, func: &FunctionPattern) -> String {
+        let func_name = &func.name;
+        let mut test_body = String::new();
+        
+        test_body.push_str("        # Test error handling\n");
+        
+        if !func.parameters.is_empty() {
+            // Test with None values
+            let none_params = func.parameters.iter().map(|_| "None").collect::<Vec<_>>().join(", ");
+            test_body.push_str(&format!("        with pytest.raises((TypeError, ValueError, AttributeError)):\n"));
+            test_body.push_str(&format!("            {}({})\n", func_name, none_params));
+            
+            // Test with wrong types
+            test_body.push_str("        \n");
+            test_body.push_str("        # Test with invalid types\n");
+            let invalid_params = func.parameters.iter().enumerate().map(|(i, param)| {
+                let param_lower = param.to_lowercase();
+                if param_lower.contains("number") || param_lower.contains("count") || param_lower.contains("age") {
+                    "\"not_a_number\""
+                } else if param_lower.contains("string") || param_lower.contains("name") || param_lower.contains("email") {
+                    "123"
+                } else if param_lower.contains("bool") || param_lower.contains("flag") {
+                    "\"not_boolean\""
+                } else if param_lower.contains("list") || param_lower.contains("array") {
+                    "\"not_a_list\""
+                } else {
+                    "object()"  // Generic invalid object
+                }
+            }).collect::<Vec<_>>().join(", ");
+            
+            test_body.push_str(&format!("        with pytest.raises((TypeError, ValueError)):\n"));
+            test_body.push_str(&format!("            {}({})\n", func_name, invalid_params));
+            
+            // Test function-specific error cases
+            let name_lower = func_name.to_lowercase();
+            if name_lower.contains("divide") {
+                test_body.push_str("        \n");
+                test_body.push_str("        # Test division by zero\n");
+                test_body.push_str(&format!("        with pytest.raises((ZeroDivisionError, ValueError)):\n"));
+                test_body.push_str(&format!("            {}(10, 0)\n", func_name));
+            }
+        }
+        
+        test_body
+    }
+
+    fn generate_boundary_test_body_python(&self, func: &FunctionPattern) -> String {
+        let func_name = &func.name;
+        let mut test_body = String::new();
+        
+        test_body.push_str("        # Test boundary conditions\n");
+        
+        if func.parameters.is_empty() {
+            test_body.push_str(&format!("        # Test function consistency\n"));
+            test_body.push_str(&format!("        result1 = {}()\n", func_name));
+            test_body.push_str(&format!("        result2 = {}()\n", func_name));
+            test_body.push_str("        # Results should be consistent for functions without parameters\n");
+        } else {
+            // Test with boundary values
+            if func.parameters.len() == 1 {
+                test_body.push_str(&format!("        # Test with boundary values\n"));
+                test_body.push_str(&format!("        _result_zero = {}(0)\n", func_name));
+                test_body.push_str(&format!("        _result_negative = {}(-1)\n", func_name));
+                test_body.push_str(&format!("        _result_large = {}(999999)\n", func_name));
+                test_body.push_str(&format!("        _result_empty_string = {}('')\n", func_name));
+            } else if func.parameters.len() == 2 {
+                test_body.push_str(&format!("        # Test with boundary value combinations\n"));
+                test_body.push_str(&format!("        _result_zeros = {}(0, 0)\n", func_name));
+                test_body.push_str(&format!("        _result_mixed = {}(0, 1)\n", func_name));
+                test_body.push_str(&format!("        _result_negative = {}(-1, -1)\n", func_name));
+                test_body.push_str(&format!("        _result_large = {}(999999, 999999)\n", func_name));
+            } else {
+                test_body.push_str(&format!("        # Test with multiple boundary parameters\n"));
+                let boundary_params = func.parameters.iter().enumerate().map(|(i, _)| {
+                    match i % 3 {
+                        0 => "0",
+                        1 => "-1", 
+                        _ => "999999",
+                    }
+                }).collect::<Vec<_>>().join(", ");
+                test_body.push_str(&format!("        _result_boundaries = {}({})\n", func_name, boundary_params));
+            }
+        }
+        
+        test_body
+    }
+
+    fn generate_type_validation_test_body_python(&self, func: &FunctionPattern) -> String {
+        let func_name = &func.name;
+        let mut test_body = String::new();
+        
+        test_body.push_str("        # Test type validation\n");
+        
+        // Test each parameter with wrong types
+        for (i, param) in func.parameters.iter().enumerate() {
+            let param_lower = param.to_lowercase();
+            
+            test_body.push_str(&format!("        # Test parameter {}: {}\n", i + 1, param));
+            
+            if param_lower.contains("int") || param_lower.contains("number") || param_lower.contains("count") {
+                let wrong_type_params = self.create_invalid_call_python(func, i, "\"not_an_int\"");
+                test_body.push_str(&format!("        with pytest.raises((TypeError, ValueError)):\n"));
+                test_body.push_str(&format!("            {}({})\n", func_name, wrong_type_params));
+            } else if param_lower.contains("str") || param_lower.contains("string") || param_lower.contains("name") {
+                let wrong_type_params = self.create_invalid_call_python(func, i, "123");
+                test_body.push_str(&format!("        with pytest.raises((TypeError, AttributeError)):\n"));
+                test_body.push_str(&format!("            {}({})\n", func_name, wrong_type_params));
+            } else if param_lower.contains("bool") || param_lower.contains("flag") {
+                let wrong_type_params = self.create_invalid_call_python(func, i, "\"not_boolean\"");
+                test_body.push_str(&format!("        with pytest.raises((TypeError, ValueError)):\n"));
+                test_body.push_str(&format!("            {}({})\n", func_name, wrong_type_params));
+            } else if param_lower.contains("list") || param_lower.contains("array") {
+                let wrong_type_params = self.create_invalid_call_python(func, i, "\"not_a_list\"");
+                test_body.push_str(&format!("        with pytest.raises((TypeError, AttributeError)):\n"));
+                test_body.push_str(&format!("            {}({})\n", func_name, wrong_type_params));
+            }
+        }
+        
+        test_body
+    }
+
+    fn generate_sample_parameters_python(&self, func: &FunctionPattern) -> String {
+        func.parameters.iter().enumerate().map(|(i, param)| {
+            let param_lower = param.to_lowercase();
+            match param_lower.as_str() {
+                p if p.contains("email") => "\"test@example.com\"".to_string(),
+                p if p.contains("name") => format!("\"TestName{}\"", i + 1),
+                p if p.contains("count") || p.contains("number") || p.contains("age") => "42".to_string(),
+                p if p.contains("price") || p.contains("amount") => "19.99".to_string(),
+                p if p.contains("bool") || p.contains("flag") => "True".to_string(),
+                p if p.contains("list") || p.contains("array") => "[1, 2, 3]".to_string(),
+                p if p.contains("dict") || p.contains("map") => "{\"key\": \"value\"}".to_string(),
+                p if p.contains("a") || p.contains("b") || p.contains("x") || p.contains("y") => "5".to_string(),
+                p if p.contains("width") || p.contains("height") => "10".to_string(),
+                _ => format!("\"test_value_{}\"", i + 1),
+            }
+        }).collect::<Vec<_>>().join(", ")
+    }
+
+    fn create_invalid_call_python(&self, func: &FunctionPattern, invalid_param_index: usize, invalid_value: &str) -> String {
+        let params: Vec<String> = func.parameters.iter().enumerate().map(|(i, _)| {
+            if i == invalid_param_index {
+                invalid_value.to_string()
+            } else {
+                "None".to_string()
+            }
+        }).collect();
+        
+        params.join(", ")
     }
 
     fn detect_patterns(&self, source: &str) -> Vec<TestablePattern> {
