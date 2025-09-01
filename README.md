@@ -1,4 +1,4 @@
-# Unified Test Framework
+# Unified Test Framework (utf)
 
 A powerful Rust CLI tool that automatically generates unit tests for multiple programming languages by analyzing code patterns and creating framework-specific test skeletons.
 
@@ -6,7 +6,7 @@ A powerful Rust CLI tool that automatically generates unit tests for multiple pr
 
 ```bash
 # One-line installation (recommended)
-curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/docs/installation/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/utf/main/docs/installation/install.sh | bash
 
 # Generate tests for a Git repository
 utf git-repo https://github.com/user/repo.git
@@ -23,7 +23,7 @@ utf analyze src/utils.py
 ### Option 1: One-Line Installer (Recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/docs/installation/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/utf/main/docs/installation/install.sh | bash
 ```
 
 **Features:**
@@ -37,8 +37,8 @@ curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framewo
 ### Option 2: Build from Source
 
 ```bash
-git clone https://github.com/your-repo/unified-test-framework
-cd unified-test-framework
+git clone https://github.com/your-repo/utf
+cd utf
 cargo install --path .
 ```
 
@@ -48,13 +48,13 @@ cargo install --path .
 
 ```bash
 # Force reinstall
-UTF_FORCE=1 curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/docs/installation/install.sh | bash
+UTF_FORCE=1 curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/utf/main/docs/installation/install.sh | bash
 
 # Install to custom directory
-UTF_INSTALL_DIR=~/bin curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/docs/installation/install.sh | bash
+UTF_INSTALL_DIR=~/bin curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/utf/main/docs/installation/install.sh | bash
 
 # Install specific version
-UTF_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/docs/installation/install.sh | bash
+UTF_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/utf/main/docs/installation/install.sh | bash
 ```
 
 ## 🔧 Commands
