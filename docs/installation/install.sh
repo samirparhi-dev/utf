@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # UTF - Unified Test Framework Installation Script
-# Usage: curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/unified-test-framework/main/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/samirparhi-dev/utf/main/install.sh | bash
 
 set -e
 
